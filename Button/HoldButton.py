@@ -30,7 +30,7 @@ def touchDetect():
     label('released')
     wait(1, pin, 0)
 
-    set(y,4)                # publish state hold
+    set(y,4)                # publish state released
     in_(y,32)
     push(y)
     irq(rel(0))
