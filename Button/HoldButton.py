@@ -12,13 +12,13 @@ def touchDetect():
     push(y)    
     irq(rel(0))
     
-    set(x,31)               # modifiy x to change the hold detection duration
+    set(x,31)               # modify x to change the hold detection duration
     label('loop')
 
     in_(pins,1)
     mov(y,isr)
     jmp(y_dec,'released')      
-    jmp(x_dec,'loop') [31]  # modifiy delay to change the hold detection duration
+    jmp(x_dec,'loop') [31]  # modify delay to change the hold detection duration
     
     set(y,2)                # publish state hold
     in_(y,32)
@@ -28,7 +28,7 @@ def touchDetect():
     set(x,0)                # set hold interrupt frequency
     jmp('loop')             # if hold irq should be continued. comment if only one hold interrupt needed
     label('released')
-    wait(1, pin, 0)
+    wait(1, pin, 0)         # wait for state high
 
     set(y,4)                # publish state released
     in_(y,32)
