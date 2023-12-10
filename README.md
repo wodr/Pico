@@ -1,7 +1,7 @@
 **Demo RP2040 raspberry pico using PIO in micropython**
 
 The HoldButton implements a button, that fires an interrupt, if the button is pushed, hold or released.
-The scnerio for using this kind of button is:
+The scenario for using this kind of button is:
 - Press once : ON
 - Press again: OFF
 - Hold  : control a PWM up and down to dim an LED
@@ -23,9 +23,9 @@ Sequence for long push:
 
 I did no observe any glitches and did not use any capacitor.
 
-The button is configure as in, pull up.
+The button is configured as in, pull up.
 
-The PIO (programmable input output) for th rp2040 is used to detected the button input changes:
+The PIO (programmable input output) for the rp2040 is used to detected the button input changes:
 
 - The PIO program waits for an input to get low and fires an interrupt.
 - Then waits for the input to get high again in a loop.
@@ -35,7 +35,7 @@ The PIO (programmable input output) for th rp2040 is used to detected the button
 - The program is started again
 
 The loop time for a hold detection is configured by the frequency of the pio program 
-and by the delay set for the instructions.
+and by the delay, set for the instructions.
 
 The input fifo is used to add the kind of event: 
 - pressed
