@@ -1,7 +1,7 @@
-**Measure duration between interrupts with PIO**
+**Measure duration between input pin changes with PIO**
 
-Measure duration between interrupts.
-Exact frequency and duty cycle measurements for low range frequncies.
+Measure duration between input pin changes.
+Exact frequency and duty cycle measurements for low range frequncies (< 3 kHz).
 
 The basic idea is to count instruction between changes of the input pin. 
 Because each instruction has a well defined duration the frequency can be calculated.
@@ -17,15 +17,17 @@ PIO program:
 The statemachine runs at 125Mhz. That means each cylce takes 8 ns.
 The input change is detected with a granularity of 5 instructions * 8 ns / instruction = 40ns.
 Given this the accuracy is better than 0.008%  for frequencies up  to 1000 Hz.
-There aresome more instructions between the counting loops, which also wiggle the result.
+There are some more instructions between the counting loops, which also wiggle the result.
 But these are a fixed time and only occour once for each signal change.
 
 The frequency is limit to about 3 kHz, because of the slow interrupt handler to empty the rx fifo.
 This might be improved , if the values are written in a dma buffer, so that interrupts rate could be lowered to read the buffer
 
 Example output for a 50 Hz signal with 50% duty cylce:
-Low : Counter for input low
-High : Counter for input high
+
+Low [#]  : Counter for input low  
+High[#]  : Counter for input high  
+H+L [#]  : Sum of low and high counter
 
 ```
  Time   Loops      Low [#]   High [#]  H+L[#]  Period [ms]    Frequency [Hz]  Duty [%]
