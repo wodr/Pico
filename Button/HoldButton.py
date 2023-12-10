@@ -86,6 +86,7 @@ class HoldButton:
         self.sm.active(0)
         self.sm.irq(None)
     
+    @staticmethod
     def Reset(firstStateMachine):
         HoldButton.stateMachineIndex = firstStateMachine
         for i in range(0,2):            
@@ -104,7 +105,7 @@ class HoldButton:
 
 if __name__ == '__main__':
     import time
-    HoldButton.Reset(2)
+    HoldButton.Reset(0)
     led = Pin("LED",Pin.OUT)
     
 
