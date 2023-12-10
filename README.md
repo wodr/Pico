@@ -4,7 +4,7 @@ The HoldButton implements a button, that fires an interrupt, if the button is pu
 The scenario for using this kind of button is:
 - Press once : ON
 - Press again: OFF
-- Hold  : control a PWM up and down to dim an LED
+- Hold  : control a PWM up and down to dim a LED
 
 ```
 Interrupts:
