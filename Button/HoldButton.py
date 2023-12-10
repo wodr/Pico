@@ -1,6 +1,6 @@
 from machine import Pin
 import rp2
-import time
+
 
 @rp2.asm_pio(set_init=rp2.PIO.IN_HIGH)
 def touchDetect():
@@ -40,7 +40,9 @@ def touchDetect():
 
 class HoldButton: 
     stateMachineIndex = 0
-    
+    Pressed = const(1)
+    Hold = const(2)
+    Released = const(4)
     
     def __init__(self, pin : int | Pin, callback = None):
         self.callback = callback
@@ -57,14 +59,7 @@ class HoldButton:
         if( HoldButton.stateMachineIndex > 7):
             raise ValueError(f"only 8 buttons are supported because of 8 statemachines.")
         
-        if( HoldButton.stateMachineIndex == 0 ):
-            # reset all
-            print("reset pio")
-            for i in range(0,2):
-                rp2.PIO(i).remove_program()                      
-                rp2.PIO(i).irq(None)                          
-            for i in range(0,8):
-                rp2.StateMachine(i).irq(None)
+       
             
         self.sm = rp2.StateMachine(HoldButton.stateMachineIndex,touchDetect,in_base=self.pin, freq=2000)        
         
@@ -84,39 +79,55 @@ class HoldButton:
         self.eventCounter += 1
         
         if( self.callback != None):
-            self.callback(buttonState)
+            self.callback(self,buttonState)
             return
                 
     def Stop(self):
         self.sm.active(0)
         self.sm.irq(None)
     
-    def Reset():
-        HoldButton.stateMachineIndex = 0 
+    def Reset(firstStateMachine):
+        HoldButton.stateMachineIndex = firstStateMachine
+        for i in range(0,2):            
+            rp2.PIO(i).remove_program()                      
+            rp2.PIO(i).irq(None)                          
+        for i in range(0,8):
+            try:
+                rp2.StateMachine(i).active(0)
+                rp2.StateMachine(i).irq(None)
+            except ValueError:
+                # todo fix 'StateMachine claimed by external resource'
+                pass
+
+
+            
 
 if __name__ == '__main__':
+    import time
+    HoldButton.Reset(2)
+    led = Pin("LED",Pin.OUT)
     
-    HoldButton.Reset()
-    led = Pin(16,Pin.OUT)
 
-    def ButtonEvent(buttonState):
+    def ButtonEvent(button, buttonState):
+        global start
         f = "unknown"
-        if( buttonState == 1):
+        if( buttonState == HoldButton.Pressed):
+            start = time.ticks_ms()
             led(1)
             f = "pressed"            
-        elif( buttonState == 2):
+        elif( buttonState == HoldButton.Hold):
             led.toggle()
             f = "hold"
-        elif( buttonState == 4):
+        elif( buttonState == HoldButton.Released):
             led(0)
             f = "released"
    
-        print(f"{HoldButton.eventCounter:<3} {f:<10} {buttonState}")
+        print(f"{time.ticks_ms()-start:<8} {button.eventCounter:<3} {f:<10} {buttonState}")
         
 # press the button, led is on 
 # hold button, led flickers
 # release button led is off.
 # Nice side effect: There seems to be no bouncing if switched.
 
-    button1 = HoldButton(15,ButtonEvent)
+    button1 = HoldButton(22,ButtonEvent)
     time.sleep(3600)        
