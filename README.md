@@ -2,22 +2,22 @@
 
 The HoldButton implements a button, that fires an interrupt, if the button is pushed, hold or released.
 The scenario for using this kind of button is:
-- Press once : ON
-- Press again: OFF
-- Hold  : control a PWM up and down to dim a LED
+- Press once : switch LED on 
+- Press again: switch LED off
+- Hold  : control a PWM duty cycle up and down to dim a LED
 
 ```
 Interrupts:
 
 Sequence for short push:
 
-   pressed  release
-----|-------|----> t
+   pressed released
+----|---------|----> t
 
 Sequence for long push:
 
-   pressed         hold   hold   hold release
-----|---------------|------|------|----|----> t
+   pressed       hold   hold   hold released
+----|-------------|------|------|----|----> t
     
 ```
 
@@ -47,7 +47,6 @@ There are 8 buttons max, becaus there are 8 state machines.
 I use the vscode extension MicroPico (https://marketplace.visualstudio.com/items?itemName=paulober.pico-w-go).
 
 Example output:
-
 
 ```
 active sm=2 StateMachine(2)
