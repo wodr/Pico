@@ -21,7 +21,7 @@ Sequence for long push:
     
 ```
 
-I did no observe any glitches and did not use any capacitor.
+I did no observe any glitches and no special debounce logic is implemented
 
 The button is configured as in, pull up.
 
@@ -42,7 +42,7 @@ The input fifo is used to add the kind of event:
 - hold
 - released
 
-There are 8 buttons max, becaus there are 8 state machines.
+There are 8 buttons max, because there are 8 state machines.
 
 Example output:
 
