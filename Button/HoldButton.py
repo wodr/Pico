@@ -2,7 +2,7 @@ from machine import Pin
 import rp2
 
 
-@rp2.asm_pio(set_init=rp2.PIO.IN_HIGH)
+@rp2.asm_pio(set_init=rp2.PIO.IN_HIGH,sideset_init=rp2.PIO.OUT_HIGH)
 def touchDetect():
     wrap_target()
     wait(0, pin, 0)    

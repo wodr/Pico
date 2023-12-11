@@ -30,7 +30,7 @@ import rp2
 
 #https://docs.micropython.org/en/latest/library/rp2.StateMachine.html#rp2.StateMachine
 # inspired by : https://github.com/dhylands/upy-examples/blob/master/pico/pio_measure.py
-@rp2.asm_pio(set_init=rp2.PIO.IN_LOW, autopush=True, push_thresh=32)
+@rp2.asm_pio(set_init=rp2.PIO.IN_LOW, autopush=True, push_thresh=32,sideset_init=rp2.PIO.OUT_HIGH)
 def measureTime():
     wrap_target()
     set(x, 0)
@@ -38,7 +38,7 @@ def measureTime():
     jmp(x_dec, 'next0') [1]     # delay for 1 instruction because next loop take 1 more instruction
     label('next0')              # delay can be set to 0 if instructionCounterHigh = 2
     jmp(pin, 'wait0')           # while pin is high
-    in_(x, 32)                  # push low duration 
+    in_(x, 32).side(0)          # push low duration 
     
     set(x, 0)
     label('wait1')              # pin pin is low
@@ -47,7 +47,7 @@ def measureTime():
     jmp(pin, 'done')            # pin has gone high: all done
     jmp('wait1')
     label('done')
-    in_(x, 32)                  # push high duration
+    in_(x, 32).side(1)          # push high duration
     # irq(1) => flags == 512
     # irq(0) => flags == 256
     irq(0)                      # only one interrupt for 2 fifo fills
@@ -71,7 +71,7 @@ if( usePwm ):
 else:
     measurePin = Pin(22,Pin.IN,Pin.PULL_UP)
 
-sideSetPin = Pin(15,Pin.OUT)
+sideSetPin = Pin(10,Pin.OUT)
 
 sm0 = rp2.StateMachine(0, measureTime, in_base=measurePin,sideset_base=sideSetPin,jmp_pin=measurePin)
 print(f"for signal on {measurePin} machine f= {freq()} Hz sideSet {sideSetPin}")
