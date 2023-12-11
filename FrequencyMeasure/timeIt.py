@@ -30,6 +30,7 @@ import rp2
 
 #https://docs.micropython.org/en/latest/library/rp2.StateMachine.html#rp2.StateMachine
 # inspired by : https://github.com/dhylands/upy-examples/blob/master/pico/pio_measure.py
+# https://docs.micropython.org/en/latest/library/rp2.StateMachine.html#rp2.StateMachine
 @rp2.asm_pio(set_init=rp2.PIO.IN_LOW, autopush=True, push_thresh=32)
 def measureTime():
     wrap_target()
@@ -60,16 +61,16 @@ for i in range(0,8):
     rp2.StateMachine(i).irq(None)
 
 measurePin = None
-usePwm = True
+usePwm = False
 if( usePwm ):
     measurePin = Pin(13,Pin.IN,Pin.PULL_UP)
     pinPwm = PWM(measurePin)    
-    pinPwm.freq(125)
+    pinPwm.freq(10)
     #pinPwm.duty_u16(int(0x8000))    # 50%
     pinPwm.duty_u16(int(0x4000))   # 25%
     #pinPwm.duty_u16(int(0x1000))   # 50%
 else:
-    measurePin = Pin(22,Pin.IN,Pin.PULL_UP)
+    measurePin = Pin(21,Pin.IN)
 
 sideSetPin = Pin(15,Pin.OUT)
 
