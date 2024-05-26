@@ -75,8 +75,7 @@ def PioInfo(pioNo=0,infoLevel=0xFFFF):
 
 def SmInfo(smId):
     pioNo = smId // 4
-    i = smId & 0x3 
-    smId = i+pioNo*4
+    i = smId & 0x3     
     pioBase = ADR_PIO0_BASE + pioNo * 0x100000        
     ctrl = mem32[pioBase]
     enabled = (ctrl & (1<<i)) if 1  else 0
@@ -271,18 +270,15 @@ if __name__ == '__main__':
         
 
     def DumpInstructions(pio,start=0,end=31):
-        
-        
-        #sm = AddProgram(smId)
-        #sm = rp2.StateMachine(smId, NopProgram)
-        smId = 1
-        end +=1
+        smId = 3 # use any sm from that pio, just to execute the instructions. 
+        # the sm should not be used, but can be, because X is modified.
+        end +=1 # wrap target is the last included address so add 1
         sm = rp2.PIO(pio).state_machine(smId)        
         
         pioBase = ADR_PIO0_BASE + pio * 0x100000
         
         smId = smId & 0x3
-        print(f"pioBase = {pioBase:08X} smId={smId}")
+        print(f"Pio = {pio} pioBase = {pioBase:08X}")
         c = rp2.asm_pio_encode("nop()",0)
         
         for i in range(start,end,1):
