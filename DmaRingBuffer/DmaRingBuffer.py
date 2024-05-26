@@ -48,6 +48,7 @@ class DmaRingBuffer:
     # as long as count > 0 dma continues to write to the buffer
     # count can by any number, so set it to maximum before dma signal ready
     _MAXDMACOUNT = const(0x4FFFFFFF)
+    #_MAXDMACOUNT = const(73)
 
     def __init__(self,count32BitwordsAsPowerOf2:int) -> None:
         self.dma = rp2.DMA()
@@ -134,6 +135,7 @@ class DmaRingBuffer:
             if( cnt == 0 ):          
                 # restart dma
                 print("restart")
+                # todo implement correct restart logic
                 self._dmaCount(_MAXDMACOUNT)
                 self.dma.active(1)   
             
