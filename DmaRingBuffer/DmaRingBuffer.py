@@ -2,6 +2,10 @@ import time
 from array import array
 import rp2
 from uctypes import addressof
+import StateMachineHelper
+
+if 1==2:
+    from ..Common.StateMachineHelper import *
 
 PIO0_BASE = const(0x50200000)
 PIO_RXF0 = const(0x20)
@@ -36,6 +40,8 @@ sm0.exec("mov(x, osr)") #
 #sm0.put(62_500_000)     # loop counter 2 per second @ 125 MHz
 sm0.put(6_250_000)     # loop counter 20 per second
 #sm0.put(625_000)       # loop counter 200 per second
+
+#StateMachineHelper.PioInfo()
 
 def nice(counter):
     #return hex(counter)
@@ -172,6 +178,7 @@ if __name__ == '__main__' :
     dma = DmaRingBuffer(7)
     dma.Start(smId)
     sm0.active(1)
+    StateMachineHelper.PioInfo()
 
     try:
         lastValue = -1
