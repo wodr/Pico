@@ -1,5 +1,4 @@
 import time
-from machine import Pin
 from array import array
 import rp2
 from uctypes import addressof
@@ -127,7 +126,7 @@ class DmaRingBuffer:
         print(f"start dma : write={write:x} count={count}")
                 
     def Get(self):
-        lastRead = 0   
+        lastRead = _MAXDMACOUNT- self._dmaCount()  
         lastCount = 0     
         mask = self.mask>>2
         while(True):           
@@ -139,41 +138,52 @@ class DmaRingBuffer:
                 self.dma.active(1)   
             
             write  = _MAXDMACOUNT - cnt
-            #write = (self._dmaWrite() - addressof(self.buffer))//4
-            
-            busy = self._dmaBusy()
+                        
             count = cnt - lastCount 
-            #print(f" trans cnt = {cnt} write={write} busy = {busy} lastRead ={lastRead} count={count} buffer = ", [ nice(x) for x in  self.buffer ] )                 
-           
+            # keep polling           
+            if( lastRead == write):
+                 # return 0 0 0?
+                 continue
             
-            #if(  count > len(self.buffer) ):
-            #    print(f"**** OVERFLOW **** count={count} lr={lastRead} w={write} cnt={cnt}")
+            if( write - lastRead > len(self.buffer)):                
+                print(f"**** OVERFLOW **** count={count} lr={lastRead} w={write} cnt={cnt}")
+                lastRead = write
+                continue
+
+            w  = write & mask
+            r = lastRead & mask
             
-            if( write > lastRead + self.sizeInBytes // 4):
-                # print(f"wrap w={write} r={lastRead} l={len(self.buffer)}")
-                yield (self.buffer[(lastRead&mask):],lastRead,len(self.buffer),cnt)
-                lastRead = 0 
-           
-            if( lastRead != write):
-                yield (self.buffer[(lastRead&mask):(write&mask)],lastRead,write,cnt)
+            if( w <= r):
+                # needs wrap?
+                yield (self.buffer[r:],lastRead,write)
+                r = 0  
+
+            if ( r != w):
+                # any data left?
+                yield (self.buffer[r:w],lastRead,write)
+            
             lastRead = write
             
 
 if __name__ == '__main__' :
     import random
-    dma = DmaRingBuffer(6)
+    dma = DmaRingBuffer(7)
     dma.Start(smId)
     sm0.active(1)
 
     try:
         lastValue = -1
         slp = 0
-        for v,r,w,c in dma.Get():                      
-            print(f"wait={slp} r={r} w={w} c={c} values={[nice(x) for x in v]}")        
-            firstValue = nice(v[0])
+        for v,r,w in dma.Get():                      
+            print(f"wait={slp} r={r} w={w} c={w-r} values={[nice(x) for x in v]}")        
+            firstValue = lastValue+1
+            if( len(v) > 0 ):
+                firstValue = nice(v[0])
+                
             if( lastValue != firstValue-1):
                 print(f"Missing values first={firstValue} last={lastValue}")
-            lastValue = nice(v[-1])
+            if( len(v) > 0 ):
+                lastValue = nice(v[-1])
             # simulate other processing 
             
             slp = (random.randint(1,10)/20)
