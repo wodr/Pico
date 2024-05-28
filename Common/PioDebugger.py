@@ -57,28 +57,28 @@ def SmInfo(smId):
     i = smId & 0x3     
     pioBase = _ADR_PIO0_BASE + pioNo * 0x100000        
     ctrl = mem32[pioBase]
-    enabled = (ctrl & (1<<i)) if 1  else 0
-    print(f" === SM{smId} PIO={pioNo} ENABLE={enabled} ===  ")
+    enabled = 1 if (ctrl & (1<<i))  else 0
+    print(f" ===  SM{smId} PIO{pioNo} ENABLE={enabled}  ===  ")
     if( not enabled and False):
         return
     clkdiv = mem32[pioBase+i*_SIZE_SM+0xC8]
-    print(f"{0xC8+i*_SIZE_SM:03X}: {clkdiv:08X} SM{smId}_CLKDIV           INTDIV        = {BitVal(clkdiv,31,16)} FRAC        = {BitVal(clkdiv,15,8)}")        
+    print(f" {0xC8+i*_SIZE_SM:03X}: {clkdiv:08X} SM{smId}_CLKDIV           INTDIV        = {BitVal(clkdiv,31,16)} FRAC        = {BitVal(clkdiv,15,8)}")        
     execCtrl = mem32[pioBase+i*_SIZE_SM+0xCC]
     wrapTop = BitVal(execCtrl,16,12)
     wrapBottom = BitVal(execCtrl,11,7)
-    print(f"{0xCC+i*_SIZE_SM:03X}: {execCtrl:08X} SM{smId}_EXECCTRL[31:19]  EXEC_STALLED  = {BitVal(execCtrl,31,31)} SIDE_EN     = {BitVal(execCtrl,30,30)} SIDE_PINDIR = {BitVal(execCtrl,29,29):>2} JMP_PIN      = {BitVal(execCtrl,28,24):>2} OUT_EN_SEL = {BitVal(execCtrl,23,19):>2}") 
-    print(f"{0xCC+i*_SIZE_SM:03X}: {execCtrl:08X} SM{smId}_EXECCTRL[18:0]   INLINE_OUT_EN = {BitVal(execCtrl,18,18)} OUT_STICKY  = {BitVal(execCtrl,17,17)} WRAP_TOP    = {BitVal(execCtrl,16,12):02X} WRAP_BOTTOM  = {BitVal(execCtrl,11,7):02X} STATE_SEL  = {BitVal(execCtrl,4,4):>2} STATUS_N = {BitVal(execCtrl,3,0)}")
+    print(f" {0xCC+i*_SIZE_SM:03X}: {execCtrl:08X} SM{smId}_EXECCTRL[31:19]  EXEC_STALLED  = {BitVal(execCtrl,31,31)} SIDE_EN     = {BitVal(execCtrl,30,30)} SIDE_PINDIR = {BitVal(execCtrl,29,29):>2} JMP_PIN      = {BitVal(execCtrl,28,24):>2} OUT_EN_SEL = {BitVal(execCtrl,23,19):>2}") 
+    print(f" {0xCC+i*_SIZE_SM:03X}: {execCtrl:08X} SM{smId}_EXECCTRL[18:0]   INLINE_OUT_EN = {BitVal(execCtrl,18,18)} OUT_STICKY  = {BitVal(execCtrl,17,17)} WRAP_TOP    = {BitVal(execCtrl,16,12):02X} WRAP_BOTTOM  = {BitVal(execCtrl,11,7):02X} STATE_SEL  = {BitVal(execCtrl,4,4):>2} STATUS_N = {BitVal(execCtrl,3,0)}")
     shiftCtrl = mem32[pioBase+i*_SIZE_SM+0xD0]
-    print(f"{0xD0+i*_SIZE_SM:03X}: {shiftCtrl:08X} SM{smId}_SHIFTCTRL[31:20] FJOIN_RX      = {BitVal(shiftCtrl,31,31)} FJPOIN_TX   = {BitVal(shiftCtrl,30,30)} PULL_THRESH = {BitVal(shiftCtrl,29,25):>2} PUSH_THRESH  = {BitVal(shiftCtrl,24,20):>2}")
-    print(f"{0xD0+i*_SIZE_SM:03X}: {shiftCtrl:08X} SM{smId}_SHIFTCTRL[19:0]  OUT_SHIFTDIR  = {BitVal(shiftCtrl,19,19)} IN_SHIFTDIR = {BitVal(shiftCtrl,18,18)} AUTOPULL    = {BitVal(shiftCtrl,17,17):>2} AUTOPUSH     = {BitVal(shiftCtrl,16,16):>2}")
+    print(f" {0xD0+i*_SIZE_SM:03X}: {shiftCtrl:08X} SM{smId}_SHIFTCTRL[31:20] FJOIN_RX      = {BitVal(shiftCtrl,31,31)} FJPOIN_TX   = {BitVal(shiftCtrl,30,30)} PULL_THRESH = {BitVal(shiftCtrl,29,25):>2} PUSH_THRESH  = {BitVal(shiftCtrl,24,20):>2}")
+    print(f" {0xD0+i*_SIZE_SM:03X}: {shiftCtrl:08X} SM{smId}_SHIFTCTRL[19:0]  OUT_SHIFTDIR  = {BitVal(shiftCtrl,19,19)} IN_SHIFTDIR = {BitVal(shiftCtrl,18,18)} AUTOPULL    = {BitVal(shiftCtrl,17,17):>2} AUTOPUSH     = {BitVal(shiftCtrl,16,16):>2}")
     pinCtrl = mem32[pioBase+i*_SIZE_SM+0xDC]
-    print(f"{0xDC+i*_SIZE_SM:03X}: {pinCtrl:08X} SM{smId}_PINCTRL          SIDESET_COUNT = {BitVal(pinCtrl,31,29)} SET_COUNT   = {BitVal(pinCtrl,28,26)} OUT_COUNT   = {BitVal(pinCtrl,25,20):>2} SIDESET_BASE  = {BitVal(pinCtrl,14,10)} SET_BASE = {BitVal(pinCtrl,9,5)} OUT_BASE = {BitVal(pinCtrl,4,0):>2}")
+    print(f" {0xDC+i*_SIZE_SM:03X}: {pinCtrl:08X} SM{smId}_PINCTRL          SIDESET_COUNT = {BitVal(pinCtrl,31,29)} SET_COUNT   = {BitVal(pinCtrl,28,26)} OUT_COUNT   = {BitVal(pinCtrl,25,20):>2} SIDESET_BASE  = {BitVal(pinCtrl,14,10)} SET_BASE = {BitVal(pinCtrl,9,5)} OUT_BASE = {BitVal(pinCtrl,4,0):>2}")
 
     addr = mem32[pioBase+i*_SIZE_SM+0xD4]
-    print(f"{0xD4+i*_SIZE_SM:03X}: {addr:08X} SM{smId}_ADDR             PC            = {BitVal(addr,4,0):02X}")
+    print(f" {0xD4+i*_SIZE_SM:03X}: {addr:08X} SM{smId}_ADDR             PC            = {BitVal(addr,4,0):02X}")
     instr = mem32[pioBase+i*_SIZE_SM+0xD8]
     si = Disasm(instr)
-    print(f"{0xD8+i*_SIZE_SM:03X}: {instr:08X} SM{smId}_INSTR            INSTR         = {BitVal(instr,15,0):04X}              DISASM      = {si}")
+    print(f" {0xD8+i*_SIZE_SM:03X}: {instr:08X} SM{smId}_INSTR            INSTR         = {BitVal(instr,15,0):04X}              DISASM      = {si}")
     
     if( wrapTop != 31 or wrapBottom != 0):
         # assume Sm does not use all the prio instruction memory.
@@ -197,13 +197,26 @@ def Disasm(instr):
 
     ssource = f"{BitVal(instr,4,0):02X}"
     #ssource = sources[BitVal(instr,2,0)]
-
+  
     if( sopcode == 'SET'):
         destinations[0b100]='PINDIRS'
     
     if( sopcode == 'MOV'):
         ssource = sources[BitVal(instr,2,0)]
-            
+        
+    if( sopcode == 'WAIT'):
+        destinations = {
+            0b000:'GPIO',
+            0b001:'PIN',
+            0b010:'IRQ',
+            0b011:'RES',
+            0b100:'GPIO',
+            0b101:'PIN',
+            0b110:'IRQ',
+            0b111:'RES',}
+        sdest = sources[BitVal(instr,6,5)]
+        ssource += f",{BitVal(instr,7,7)}"
+        
     if( sopcode == 'JMP'):
         destinations= {
             0b000:'ALWAYS',
@@ -214,9 +227,14 @@ def Disasm(instr):
             0b101:'x_not_y',
             0b110:'PIN',
             0b111:'not_OSRE'}
+        # ssource = f"'{ssource}'" # make label
 
     sdest = destinations[BitVal(instr,7,5)]    
-    
+    if( sopcode == "PUSH/PULL"):
+        sopcode = "PULL" if ( BitVal(instr,7,7) > 0 ) else "PUSH"
+        sdest = "block" if( BitVal(instr,5,5) > 0 ) else "nonblock"
+        ssource = ""
+
     return f"{sopcode}({sdest},{ssource})"
     
 
@@ -239,11 +257,12 @@ def DumpInstructions(pio,start=0,end=31):
     
     end +=1 # wrap target is the last included address so add 1
     sm = rp2.PIO(pio).state_machine(smId)        
-    
+    wasActive = sm.active()
+    sm.active(0)
     pioBase = _ADR_PIO0_BASE + pio * 0x100000
     
     smId = smId & 0x3
-    print(f"Pio = {pio} pioBase = {pioBase:08X}")
+    # print(f"Pio = {pio} pioBase = {pioBase:08X}")
     c = rp2.asm_pio_encode("nop()",0)
     
     for i in range(start,end,1):
@@ -253,7 +272,10 @@ def DumpInstructions(pio,start=0,end=31):
         addr = mem32[pioBase+smId*_SIZE_SM+ 0x0d4]
         instr = mem32[pioBase+smId*_SIZE_SM+0xD8]
         dc = Disasm(instr)
-        print(f"{i:03} {addr:04x}: {instr:04X}  {dc:20}  func = {BitVal(instr,15,13):03b} side = {BitVal(instr,12,8):05b} 7:5 = {BitVal(instr,7,5):03b} 4:0 {BitVal(instr,4,0):05b} ")
+        print(f"  {i:02X} {addr:04x}: {instr:04X}  {dc:20}  func = {BitVal(instr,15,13):03b} side = {BitVal(instr,12,8):05b} 7:5 = {BitVal(instr,7,5):03b} 4:0 {BitVal(instr,4,0):05b} ")
+
+    if( wasActive):
+        sm.active(wasActive)
 
     #pwm = PwmHighResolution.PwmHighResolution(16,maxCount=50000,stateMachineIndex=3)
 def TestCreateNop():
@@ -266,16 +288,17 @@ def TestCreateNop():
     # DumpInstructions(0)
     PioInfo(0)
 
-def TestNoOp():
+def TestNoOp(pio=0):
     print(NopProgram)
     ResetStatemachines()
-    rp2.PIO(0).add_program(NopProgram)
+    rp2.PIO(pio).add_program(NopProgram)
     #rp2.PIO(1).add_program(NopProgram)
     
 
-TestNoOp()
-DumpInstructions(0)
+#TestNoOp(0)
+#TestNoOp(1)
+#DumpInstructions(0)
 DumpInstructions(1)
-#SmInfo(4)
+PioInfo(1)
     
     

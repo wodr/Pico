@@ -41,8 +41,6 @@ sm0.exec("mov(x, osr)") #
 sm0.put(6_250_000)     # loop counter 20 per second
 #sm0.put(625_000)       # loop counter 200 per second
 
-#StateMachineHelper.PioInfo()
-
 def nice(counter):
     #return hex(counter)
     if( counter == 0 ):
@@ -56,12 +54,19 @@ class DmaRingBuffer:
     _MAXDMACOUNT = const(0x4FFFFFFF)
     #_MAXDMACOUNT = const(73)
 
-    def __init__(self,count32BitwordsAsPowerOf2:int) -> None:
+    def __init__(self,countBytesAsPowerOf2:int) -> None:
+        """
+        @Parameter
+        ----------
+        count32BitwordsAsPowerOf2: size of the ringbuffer size = 4 * 1<<count32BitwordsAsPowerOf2 bytes
+        """
         self.dma = rp2.DMA()
-        self.count32BitwordsAsPowerOf2 =count32BitwordsAsPowerOf2
-        self.sizeInBytes = 1<<count32BitwordsAsPowerOf2        
-        self.mask = (1<<count32BitwordsAsPowerOf2)-1
-        self.rawBuffer  = array('L',[0]*self.sizeInBytes*2) # make the buffer so large, that worst case address alignment is possible
+        self.count32BitwordsAsPowerOf2 =countBytesAsPowerOf2
+        self.countBytes = 1<<countBytesAsPowerOf2                
+        self.mask = (1<<countBytesAsPowerOf2)-1
+        # make the buffer so large, that worst case address alignment is possible
+        # wrap in dma is implemented as masking the lower bits e.g 3FF, for 1024 words
+        self.rawBuffer  = array('L',[0]*(self.countBytes//4 * 2) ) 
         self.buffer = memoryview(self.rawBuffer)
         
             
@@ -72,12 +77,18 @@ class DmaRingBuffer:
     def Stop(self):
         self.dma.active(0)
 
-    def _dmaCount(self, count:int | None = None ):
+    def _dmaCount(self, count:int | None = None ) -> int:
+        """
+        returns the count of word written 
+        """
         if( count is not None):
             self.dma.registers[2] = count
         return self.dma.registers[2]
 
-    def _dmaWrite(self, write:int | None = None ):
+    def _dmaWrite(self, write:int | None = None ) -> int:
+        """
+        returns the words written
+        """
         if( write is not None):
             self.dma.registers[1] = write
         return self.dma.registers[1]
@@ -103,9 +114,9 @@ class DmaRingBuffer:
                 
         # 1<< ringSize is the number of bytes written before wrapped                
         alignedAddressOfBuffer,byteOffset = self._alignAddress(self.rawBuffer,self.mask)
-        self.buffer = self.buffer[byteOffset//4:byteOffset//4+self.sizeInBytes//4] # adjust memory view so that the start is aligned with the dma buffer        
+        self.buffer = self.buffer[byteOffset//4:byteOffset//4+self.countBytes//4]   # adjust memory view so that the start is aligned with the dma buffer        
 
-        #print(f"buffer = {addressof(self.rawBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset}")
+        print(f"buffer = {addressof(self.rawBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset} size = {len(self.buffer)} {self.buffer}")
 
         #buffer =buffer[0:dmaCountWords]
         #print([x  for x in buffer])
@@ -116,7 +127,7 @@ class DmaRingBuffer:
             treq_sel =  stateMachineId + 4,     # for state machine id 0..3
             irq_quiet = 1,         
             inc_write = 1,              
-            ring_size = self.count32BitwordsAsPowerOf2,         
+            ring_size = self.count32BitwordsAsPowerOf2,     # is this the size in bytes?       
             size = 2                            # 4 byte words
             )
 
@@ -133,11 +144,17 @@ class DmaRingBuffer:
         print(f"start dma : write={write:x} count={count}")
                 
     def Get(self):
+        """
+            iterator, waits until at least one value is added to the dma.            
+            yields a memoryview to the dma containing the values not read so far.            
+        """
         lastRead = _MAXDMACOUNT- self._dmaCount()  
         lastCount = 0     
+        # mask in words size (4 bytes)
         mask = self.mask>>2
         while(True):           
             cnt = self._dmaCount()  
+            # print(f" dmaCount = {cnt}")
             if( cnt == 0 ):          
                 # restart dma
                 print("restart")
@@ -148,7 +165,7 @@ class DmaRingBuffer:
             write  = _MAXDMACOUNT - cnt
                         
             count = cnt - lastCount 
-            # keep polling           
+            # keep polling or return empty
             if( lastRead == write):
                  # return 0 0 0?
                  continue
@@ -160,7 +177,7 @@ class DmaRingBuffer:
 
             w  = write & mask
             r = lastRead & mask
-            
+            print(f" {write} {w} {lastCount} {r}  {self._dmaWrite():08X}")
             if( w <= r):
                 # needs wrap?
                 yield (self.buffer[r:],lastRead,write)
@@ -177,27 +194,18 @@ if __name__ == '__main__' :
     import random
     dma = DmaRingBuffer(7)
     dma.Start(smId)
-    sm0.active(1)
-    StateMachineHelper.PioInfo()
-
+    sm0.active(1)    
+    print(f"count word = {dma.countBytes}")
+    print("Delay   Read   Write   Count   Data")
     try:
         lastValue = -1
         slp = 0
         for v,r,w in dma.Get():                      
-            print(f"wait={slp} r={r} w={w} c={w-r} values={[nice(x) for x in v]}")        
-            firstValue = lastValue+1
-            if( len(v) > 0 ):
-                firstValue = nice(v[0])
-                
-            if( lastValue != firstValue-1):
-                print(f"Missing values first={firstValue} last={lastValue}")
-            if( len(v) > 0 ):
-                lastValue = nice(v[-1])
-            # simulate other processing 
+            print(f"{slp:>1.2f}    {r:>4}    {w:>4}    {w-r:>4}   {[nice(x) for x in v]}")                    
             
+            # simulate other processing, while dma is filled             
             slp = (random.randint(1,10)/20)
             time.sleep(slp)
-            
 
     except KeyboardInterrupt:
         pass
@@ -206,7 +214,16 @@ if __name__ == '__main__' :
     dma.Stop()
 
 
-
+"""
+900
+904
+818
+924
+94C
+958
+978
+90C
+"""
 
 
 
