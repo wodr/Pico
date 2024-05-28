@@ -8,10 +8,7 @@ from StateMachineHelper import ResetStatemachines,AddCyw43
 
 _ADR_PIO0_BASE = const(0x50200000)
 _ADR_PIO1_BASE = const(0x50300000)
-_ADR_SMx_FSTAT = const(0x50200000 + 0x004)
-_ADR_SMx_ADDR  = const(0x50200000 + 0x0D4)
-
-_OFF_INSTRUCTION_START = const(0x48)
+_ADR_PIO1_OFFSET = _ADR_PIO1_BASE-_ADR_PIO0_BASE
 _OFF_SM_START = const(0xC8)
 _SIZE_SM = const(0xe0 - 0xC8)
 _SMx_ADDR = const(0xd4-0xc8)
@@ -24,7 +21,7 @@ def BitVal(val,highestBit,lowestBit):
     return (val >> lowestBit) & ((1<<(highestBit-lowestBit+1))-1)
 
 def PioAddress(pioNo):
-    return _ADR_PIO0_BASE + pioNo  * 0x100000
+    return _ADR_PIO0_BASE + pioNo  * _ADR_PIO1_OFFSET
 
 def SMAddress(pioNo,smNo):
     adr = PioAddress(pioNo)+_OFF_SM_START+(smNo*_SIZE_SM)+_SMx_ADDR
@@ -33,7 +30,7 @@ def SMAddress(pioNo,smNo):
 
 def PioInfo(pioNo=0,infoLevel=0xFFFF):
     print(f"#####  PIO {pioNo} #####")
-    pioBase = _ADR_PIO0_BASE + pioNo * 0x100000        
+    pioBase = PioAddress(pioNo)
     ctrl = mem32[pioBase]
     print(f"000: {ctrl:08X} CLKDIV_RESTART = {BitVal(ctrl,11,8)}  SM_RESTART = {BitVal(ctrl,7,5)}   SM_ENABLE = {BitVal(ctrl,3,0):04b}")
     fstat = mem32[pioBase+4]
@@ -55,7 +52,7 @@ def PioInfo(pioNo=0,infoLevel=0xFFFF):
 def SmInfo(smId):
     pioNo = smId // 4
     i = smId & 0x3     
-    pioBase = _ADR_PIO0_BASE + pioNo * 0x100000        
+    pioBase = PioAddress(pioNo)
     ctrl = mem32[pioBase]
     enabled = 1 if (ctrl & (1<<i))  else 0
     print(f" ===  SM{smId} PIO{pioNo} ENABLE={enabled}  ===  ")
@@ -245,9 +242,9 @@ def DumpInstructions(pio,start=0,end=31):
 
         mov(pc,x)
     
-    The PC is loaded from register X and the instruction register is fill 
+    The PC is loaded from register X and the instruction register is filled 
     with the instruction from PIO memory at address X.
-    Any statemachine can be uses to execute this instruction 
+    Any statemachine can be used to execute this instruction 
     to read all memeroy from the PIO the statemachine belongs to.
     
     """
@@ -280,8 +277,7 @@ def DumpInstructions(pio,start=0,end=31):
     #pwm = PwmHighResolution.PwmHighResolution(16,maxCount=50000,stateMachineIndex=3)
 def TestCreateNop():
     instr = rp2.asm_pio_encode("set(x,1)",0)
-    b = array('H',[instr,instr,instr,instr])
-    instructions =[instr,instr,instr,instr]
+    b = array('H',[instr,instr,instr,instr])    
     #program = struct.pack("IBB",addressof(b),len(b),-1)
     #sm = rp2.StateMachine(0,instructions)
     rp2.PIO(0).add_program((b,0,0,0,0,0,0,0)) # OK Works

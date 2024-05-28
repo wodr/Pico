@@ -116,7 +116,7 @@ class DmaRingBuffer:
         alignedAddressOfBuffer,byteOffset = self._alignAddress(self.rawBuffer,self.mask)
         self.buffer = self.buffer[byteOffset//4:byteOffset//4+self.countBytes//4]   # adjust memory view so that the start is aligned with the dma buffer        
 
-        print(f"buffer = {addressof(self.rawBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset} size = {len(self.buffer)} {self.buffer}")
+        print(f"buffer = {addressof(self.rawBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset} size = {len(self.buffer)} {[nice(x) for x in self.buffer]}")
 
         #buffer =buffer[0:dmaCountWords]
         #print([x  for x in buffer])
@@ -184,7 +184,7 @@ class DmaRingBuffer:
                 r = 0  
 
             if ( r != w):
-                # any data left?
+                # any data left after wrap?
                 yield (self.buffer[r:w],lastRead,write)
             
             lastRead = write
@@ -212,18 +212,5 @@ if __name__ == '__main__' :
 
     sm0.active(0)
     dma.Stop()
-
-
-"""
-900
-904
-818
-924
-94C
-958
-978
-90C
-"""
-
 
 

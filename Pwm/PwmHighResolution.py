@@ -51,9 +51,10 @@ class PwmHighResolution:
     Uupper = 5
     Umax = 4.096
     #Umax = 5
-    def __init__(self, pwmPin, frequency=None,maxCount=None,stateMachineIndex=4,invertDuty=False):
+    def __init__(self, pwmPin, frequency=None,maxCount=None,stateMachineIndex=4,invertDuty=False,Umax=5):
         # duty = 0 => 0V 
         # duty = 100 => Umax
+        self.Umax = Umax
         self.invertDuty = invertDuty
         self.duty = 0 
         self.maxCount = 0 
