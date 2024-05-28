@@ -109,7 +109,29 @@ def NopProgram():
     nop()
     nop()
     nop()
+    nop()  # 10
     nop()
+    nop()
+    nop()
+    nop()
+    nop()  # 15
+    nop()
+    nop()
+    nop()
+    nop()
+    nop()  # 20    
+    nop()
+    nop()
+    nop()
+    nop()
+    nop()  # 25
+    nop()
+    nop()
+    nop()
+    nop()
+    nop()  # 30
+    nop()
+    nop()  # 32    
     wrap()
 
 
@@ -137,7 +159,8 @@ def AddProgram(smId):
     return sm0
 
 def Disasm(instr):
-    """rudimentary disasembler for PIO instructions
+    """
+    rudimentary disasembler for PIO instructions
     not ment to be complete now
     """
     opcode = BitVal(instr,15,13)
@@ -244,48 +267,15 @@ def TestCreateNop():
     PioInfo(0)
 
 def TestNoOp():
-    adrNopProgram = id(NopProgram)
-    w0 = mem32[adrNopProgram]
-    adr1 = mem32[adrNopProgram+12]
-    adr2 = mem32[adrNopProgram+16]
-    print(f"prg = {adrNopProgram:x} {w0:08X} {adr1:08X} {adr2:08X}")    
-    DumpMemory(adrNopProgram,32)
-    DumpMemory(adr1,32)
-    DumpMemory(adr2,32)
-    DumpMemory(mem32[adrNopProgram],32)
-
-# stack: 564 out of 7936
-# GC: total: 191872, used: 96896, free: 94976
-# No. of 1-blocks: 3353, 2-blocks: 224, max blk sz: 484, max free sz: 5924
-# GC memory layout; from 20011280:
+    print(NopProgram)
+    ResetStatemachines()
+    rp2.PIO(0).add_program(NopProgram)
+    #rp2.PIO(1).add_program(NopProgram)
     
-    #print(mem32[0x21000000])
-    # see https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/pico_standard_link/memmap_default.ld
 
-    #obj = rp2.StateMachine(0)
-    obj = rp2.PIO(0)
-    adr = id(obj)
-    # pio :  10075E28 50200000 00000007 10075E28 50300000 00000009 100759BC 0000011D
-    #adr = id(obj.add_program)
-    #adr = 0x1006E8F8
-    #adr = 0x1006FD64
-    
-    #print(f"ADR SM0 {adr:08X}")
-
-    s = adr-128
-    l = 256
-    #Dump(s,l)
-
-    #PioInfo(0,1)
-    #PioInfo(1,1)
-
-    #AddProgram(5)    
-    #AddProgram(1)
-    #AddProgram(2)
-    print("")
-    #Dump(s,l)
-    
-#PioInfo(1)
-SmInfo(4)
+TestNoOp()
+DumpInstructions(0)
+DumpInstructions(1)
+#SmInfo(4)
     
     
