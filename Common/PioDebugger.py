@@ -131,7 +131,15 @@ def NopProgram():
     nop()  # 32    
     wrap()
 
-
+@rp2.asm_pio()
+def NopProgramSmall():
+    wrap_target()
+    nop()   # 1
+    nop()
+    nop()
+    nop()
+    nop()   # 5
+    wrap()
 @rp2.asm_pio(autopush=True,autopull=True, push_thresh=32)
 def PioCounter():    
     pull(noblock)
@@ -316,10 +324,9 @@ def TestSequence():
     DumpInstructions(1)
     PioInfo(1)
 
-if __name__ == '__main__':
-    TestSequence()
-
-#DumpInstructions(1)
+if __name__ == '__main__':    
+    #TestSequence()
+    rp2.StateMachine(7,NopProgramSmall)
+    print(NopProgramSmall)
+    DumpInstructions(1)
 #PioInfo(1)
-    
-    
