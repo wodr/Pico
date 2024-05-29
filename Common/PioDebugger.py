@@ -250,7 +250,7 @@ def DumpInstructions(pio,start=0,end=31):
     """
     # use any sm from that pio, just to execute the instructions. 
     # the sm should not be used, but can be, because X is modified.
-    smId = 3     
+    smId = 2
     
     end +=1 # wrap target is the last included address so add 1
     sm = rp2.PIO(pio).state_machine(smId)        
@@ -290,11 +290,36 @@ def TestNoOp(pio=0):
     rp2.PIO(pio).add_program(NopProgram)
     #rp2.PIO(1).add_program(NopProgram)
     
-
 #TestNoOp(0)
 #TestNoOp(1)
-#DumpInstructions(0)
-DumpInstructions(1)
-PioInfo(1)
+
+def TestSequence():
+    global pwm
+    from PwmHighResolution import PwmHighResolution
+    from boot import wlan,IfUp
+    print("IF UP")
+    IfUp(True)
+    DumpInstructions(1)
+    print("CREATE PWM")
+    pwm = PwmHighResolution(16,maxCount=50000,stateMachineIndex=7) 
+    pwm.setDuty(50)
+    print("REMOVE PROGRAM")
+    rp2.PIO(1).remove_program()
+    
+
+    #wlan.active(False)
+    #wlan.disconnect()
+    # hang=>
+    print("CREATE PWM")
+    pwm = PwmHighResolution(16,maxCount=50000,stateMachineIndex=7) 
+    pwm.setDuty(50)
+    DumpInstructions(1)
+    PioInfo(1)
+
+if __name__ == '__main__':
+    TestSequence()
+
+#DumpInstructions(1)
+#PioInfo(1)
     
     

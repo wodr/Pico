@@ -32,7 +32,7 @@ def PioCounter():
     in_(x,32)       
     wrap()    
 
-smId= 0 
+smId= 3 
 sm0 = rp2.StateMachine(smId, PioCounter)
 sm0.put(0)              # init x
 sm0.exec("pull()")
@@ -51,17 +51,22 @@ def nice(counter):
 class DmaRingBuffer: 
     # as long as count > 0 dma continues to write to the buffer
     # count can by any number, so set it to maximum before dma signal ready
-    _MAXDMACOUNT = const(0x4FFFFFFF)
+    _MAXDMACOUNT = const(0xFFFFFFFF)
     #_MAXDMACOUNT = const(73)
 
     def __init__(self,countBytesAsPowerOf2:int) -> None:
         """
         @Parameter
         ----------
-        count32BitwordsAsPowerOf2: size of the ringbuffer size = 4 * 1<<count32BitwordsAsPowerOf2 bytes
+        countBytesAsPowerOf2: size of the ringbuffer = 1<<countBytesAsPowerOf2 bytes
+
+        Examples for :
+        - 7 = 128 bytes
+        - 6 = 64  bytes
+        - 5 = 32 bytes
         """
         self.dma = rp2.DMA()
-        self.count32BitwordsAsPowerOf2 =countBytesAsPowerOf2
+        self.countBytesAsPowerOf2 =countBytesAsPowerOf2
         self.countBytes = 1<<countBytesAsPowerOf2                
         self.mask = (1<<countBytesAsPowerOf2)-1
         # make the buffer so large, that worst case address alignment is possible
@@ -127,21 +132,21 @@ class DmaRingBuffer:
             treq_sel =  stateMachineId + 4,     # for state machine id 0..3
             irq_quiet = 1,         
             inc_write = 1,              
-            ring_size = self.count32BitwordsAsPowerOf2,     # is this the size in bytes?       
+            ring_size = self.countBytesAsPowerOf2,     # is this the size in bytes?       
             size = 2                            # 4 byte words
             )
 
         print(f"control = {control:X} address of buffer {alignedAddressOfBuffer:8X} {addressof(self.rawBuffer):8X}")
 
         self.dma.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = alignedAddressOfBuffer,count=_MAXDMACOUNT, ctrl =control )
-        # just a demo
+        
         values = self.dma.unpack_ctrl(control)    
         print(values)
         
         self.dma.active(1)
         count = self._dmaCount()      
         write = self._dmaWrite()   
-        print(f"start dma : write={write:x} count={count}")
+        print(f"start dma : write={write:x} count={count:,}")
                 
     def Get(self):
         """
@@ -150,25 +155,23 @@ class DmaRingBuffer:
         """
         lastRead = _MAXDMACOUNT- self._dmaCount()  
         lastCount = 0     
+        fullWrite = 0
         # mask in words size (4 bytes)
         mask = self.mask>>2
         while(True):           
             cnt = self._dmaCount()  
             # print(f" dmaCount = {cnt}")
             if( cnt == 0 ):          
-                # restart dma
-                print("restart")
-                # todo implement correct restart logic
+                # restart dma,
+                # values might be lost: write is not possible while cnt = 0                 
                 self._dmaCount(_MAXDMACOUNT)
                 self.dma.active(1)   
             
-            write  = _MAXDMACOUNT - cnt
+            # only read this once to be consistent
+            write  = _MAXDMACOUNT - cnt + fullWrite
                         
             count = cnt - lastCount 
             # keep polling or return empty
-            if( lastRead == write):
-                 # return 0 0 0?
-                 continue
             
             if( write - lastRead > len(self.buffer)):                
                 print(f"**** OVERFLOW **** count={count} lr={lastRead} w={write} cnt={cnt}")
@@ -177,10 +180,16 @@ class DmaRingBuffer:
 
             w  = write & mask
             r = lastRead & mask
-            print(f" {write} {w} {lastCount} {r}  {self._dmaWrite():08X}")
-            if( w <= r):
-                # needs wrap?
-                yield (self.buffer[r:],lastRead,write)
+            
+            if( lastRead == write):
+                 # yield (self.buffer[r:r],lastRead,write) # return empty buffer
+                 continue            
+
+            # print(f" {write} {w} {lastCount} {r}  {self._dmaWrite():08X}")
+            if( w <= r): # needs wrap?
+                wrapCount = len(self.buffer)-r                
+                yield (self.buffer[r:],lastRead,lastRead+wrapCount)
+                lastRead +=wrapCount        
                 r = 0  
 
             if ( r != w):
@@ -188,7 +197,8 @@ class DmaRingBuffer:
                 yield (self.buffer[r:w],lastRead,write)
             
             lastRead = write
-            
+            if( cnt ==  0 ):
+                fullWrite +=_MAXDMACOUNT
 
 if __name__ == '__main__' :
     import random
