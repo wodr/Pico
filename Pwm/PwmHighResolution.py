@@ -156,7 +156,6 @@ class PwmHighResolution:
 if __name__ == '__main__':
     import time
     import math
-    from  PioDebugger import PioInfo,DumpInstructions,SmInfo
     pwm = None
     Umax = 5
     
@@ -179,11 +178,9 @@ if __name__ == '__main__':
         # periode : 200 ms
         for i in range (1,20):        
             t = i/20 *1/frequency
-            PioInfo(1)
             pwm.setT(t)    
             print(f"{t*1e3:4.6f} ms {pwm.getT()*1e3:4.6f} ms {pwm.getDuty()} % {pwm.getDutyRaw()} cnt")
             time.sleep(0.5)
-        PioInfo(1)
         pwm.setDuty(50)
 
     pwm.setDuty(50)
