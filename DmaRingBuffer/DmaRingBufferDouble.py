@@ -132,12 +132,12 @@ class DmaRingBuffer:
 
         
         controlControl = self.dma_control.pack_ctrl(
-            inc_read = 1, 
-            inc_write = 1,              
+            inc_read = 0, 
+            inc_write = 0,              
             ring_sel = 1,                       # use 1=write , 0=read for ring
             treq_sel =  0x3F ,                  # for state machine id 0..3
             irq_quiet = 0,                                         
-            ring_size = 3,                      # 8 bytes is this the size in bytes:  write_addr and trans_count
+            ring_size = 0,                      # 8 bytes is this the size in bytes:  write_addr and trans_count
             size = 2                            # 4 byte words                        
             )
 
@@ -164,14 +164,15 @@ class DmaRingBuffer:
         self.controlBuffer[1] = len(self.buffer)        # will be trans count
         
         print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write/tran = {addressof(self.dma_data.registers[1:3]):08X}")
-        self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[6:8] ,count=len(self.controlBuffer), ctrl =controlControl )
+        #self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[6:8] ,count=len(self.controlBuffer), ctrl =controlControl )
+        self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[11:12] ,count=1, ctrl =controlControl ) # use write t don't increment
         self.dma_data.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
         self.Dump()
         #print(f"controlControl = {self.dma_data.unpack_ctrl(controlControl)}")
         #print(f"controlDate = {self.dma_data.unpack_ctrl(controlData)}")
                 
         self.dma_data.active(1)
-        dma.dma_control.irq(self._dmaIrqHandler)
+        #dma.dma_control.irq(self._dmaIrqHandler)
 
         self.Dump()
         count = self._dmaCount()      
