@@ -11,6 +11,7 @@ if 1==2:
     from ..Common.StateMachineHelper import *
 
 _PIO0_BASE = const(0x50200000)
+_PIO1_OFFSET = const(0x100000)
 _PIO_RXF0 = const(0x20)
 _DMA_BASE = const(0x50000000)
 _DMA_CHANNEL_ABORT = const(0x444)
@@ -41,7 +42,7 @@ def PioCounter():
     in_(y,32)       
     wrap()    
 
-smId= 3 
+smId= 6
 sm0 = rp2.StateMachine(smId, PioCounter)
 sm0.put(0)              # init x
 sm0.exec("pull()")
@@ -152,9 +153,9 @@ class DmaRingBuffer:
 
         self.controlBuffer[0] = addressof(self.buffer)     # will be write_addr        
         
-        print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write = {addressof(self.dmaData.registers[11:12]):08X}")
+        print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write = {addressof(self.dmaData.registers[11:12]):08X} sm id = {stateMachineId}")
         self.dmaControl.config(read= self.controlBuffer , write = self.dmaData.registers[11:12] ,count=len(self.controlBuffer), ctrl =controlControl ) 
-        self.dmaData.config(read= _PIO0_BASE + _PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
+        self.dmaData.config(read= _PIO0_BASE + _PIO1_OFFSET * (stateMachineId // 4)  + _PIO_RXF0 + (stateMachineId % 4) * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
         if( self._dmaError(self.dmaControl) or self._dmaError(self.dmaControl)):
             self._abortDma()
 
