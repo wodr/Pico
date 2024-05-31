@@ -4,18 +4,16 @@ from array import array
 import rp2
 from uctypes import addressof
 
+from StateMachineHelper import *
+
+if 1==2:
+    from ..Common.StateMachineHelper import *
+
+
 PIO0_BASE = const(0x50200000)
 PIO_RXF0 = const(0x20)
 
-
-rp2.PIO(0).remove_program() # reset all
-rp2.PIO(0).irq(None)
-for i in range(0,4):
-    try:
-        rp2.StateMachine(i).irq(None)
-        rp2.StateMachine(i).active(0)
-    except:
-        pass
+ResetStatemachines()
 
 @rp2.asm_pio(autopush=True,autopull=False, push_thresh=32)
 def PioCounter():    
