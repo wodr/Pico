@@ -81,6 +81,7 @@ class DmaRingBuffer:
 
     def Stop(self):
         self.dma.active(0)
+        self.dma.close()
 
     def _dmaCount(self, count:int | None = None ) -> int:
         """
@@ -207,7 +208,7 @@ if __name__ == '__main__' :
     dma = DmaRingBuffer(7)
     dma.Start(smId)
     sm0.active(1)    
-    print(f"count word = {dma.countBytes}")
+    print(f"count word = {dma.countBytes//4}")
     print("Delay   Read   Write   Count   Data")
     try:
         lastValue = -1

@@ -103,7 +103,10 @@ def readDmaSingleBlock():
         print(f"cnt = {cnt:x} busy = {busy} buffer = ", [ nice(x) for x in buffer])                            
         if( cnt == 0 ): 
             # option: restart if finished
-            break                        
+            dma.registers[1] = addressof(rawBuffer)
+            dmaCount(len(buffer))
+            dma.active(1)
+            #break                        
 
 try:
     readDmaSingleBlock()       
