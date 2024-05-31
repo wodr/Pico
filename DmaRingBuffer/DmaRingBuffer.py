@@ -132,7 +132,7 @@ class DmaRingBuffer:
         control = self.dma.pack_ctrl(
             inc_read = 0, 
             ring_sel = 1,                       # use write for ring
-            treq_sel =  stateMachineId + 4,     # for state machine id 0..3
+            treq_sel =  stateMachineId + 4 if stateMachineId < 4 else stateMachineId + 12 - 4,
             irq_quiet = 1,         
             inc_write = 1,              
             ring_size = self.countBytesAsPowerOf2,     # is this the size in bytes?       
