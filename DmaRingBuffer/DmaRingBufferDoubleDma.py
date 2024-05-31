@@ -10,14 +10,23 @@ if 1==2:
     # here just for intellisense
     from ..Common.StateMachineHelper import *
 
-PIO0_BASE = const(0x50200000)
-PIO_RXF0 = const(0x20)
+_PIO0_BASE = const(0x50200000)
+_PIO_RXF0 = const(0x20)
 _DMA_BASE = const(0x50000000)
 _DMA_CHANNEL_ABORT = const(0x444)
 _CH0_DBG_TCR = const(0x804)
 _DMA_REGISTER_LENGTH = const(0x40)
 _DMA_SIZE32 = const(2)
+
 ResetStatemachines()
+
+#
+# Demo using a dma channel for buffered output from pio and a dma channel for control
+# When the buffer is full the control dma is triggered and 
+# resets the write register to the start of the buffer
+# So no interrupt processing is needed to read constantly from the ringbuffer
+# The ringbuffer must be large enough to prevent overflows
+#
 
 @rp2.asm_pio(autopush=True,autopull=False, push_thresh=32)
 def PioCounter():    
@@ -56,31 +65,31 @@ class DmaRingBuffer:
             countWords: size of the ringbuffer uint32
         """
         self.countBytes = countWords*4
-        self.dma_data = rp2.DMA()
-        self.dma_control = rp2.DMA()
-        self.dma_control.active(0)
-        self.dma_data.active(0)
+        self.dmaData = rp2.DMA()
+        self.dmaControl = rp2.DMA()
+        self.dmaControl.active(0)
+        self.dmaData.active(0)
 
-        if( self._dmaError(self.dma_data) or self._dmaError(self.dma_control) ):
+        if( self._dmaError(self.dmaData) or self._dmaError(self.dmaControl) ):
             self._abortDma()
         
         self.buffer = memoryview(array('L',[0]*(self.countBytes//4) ))
         self.controlBuffer = memoryview(array('L',[0]))
         
-    def _abortDma(self):        
-        abortMask = (1<< self.dma_control.channel) | (1<<self.dma_data.channel)
+    def _abortDma(self) -> None:        
+        abortMask = (1<< self.dmaControl.channel) | (1<<self.dmaData.channel)
         # print(f"*** aborting dma {self.dma_data.channel} and {self.dma_control.channel} ***")
         mem32[_DMA_BASE+ _DMA_CHANNEL_ABORT] = abortMask
         while( mem32[_DMA_BASE+ _DMA_CHANNEL_ABORT] != 0 ):
             time.sleep(0.1)
         
-    def Stop(self):
+    def Stop(self) -> None:
         # print(f"**** SHUTDOWN DMA ****")
         self._abortDma()        
-        self.dma_data.active(0)
-        self.dma_control.active(0)        
-        self.dma_control.close()
-        self.dma_data.close()
+        self.dmaData.active(0)
+        self.dmaControl.active(0)        
+        self.dmaControl.close()
+        self.dmaData.close()
         
 
     def _dmaTransCount(self, count:int | None = None ) -> int:
@@ -88,32 +97,32 @@ class DmaRingBuffer:
         returns the transfers remaining until halting
         """
         if( count is not None):
-            self.dma_data.registers[2] = count
-        return self.dma_data.registers[2]
+            self.dmaData.registers[2] = count
+        return self.dmaData.registers[2]
 
     def _dmaWrite(self, write:int | None = None ) -> int:
         """
         returns the words written
         """
         if( write is not None):
-            self.dma_data.registers[1] = write
-        return self.dma_data.registers[1]
+            self.dmaData.registers[1] = write
+        return self.dmaData.registers[1]
 
-    def _dmaBusy(self,dma):
+    def _dmaBusy(self,dma) -> bool:
         return (dma.registers[3] & (1<<24)) > 0 
     
-    def _dmaError(self,dma):
+    def _dmaError(self,dma) -> bool:
         return  (dma.registers[3] & ((1<<30)|(1<<29))) > 0         
         
-    def Start(self,stateMachineId:int):
+    def Start(self,stateMachineId:int) -> None:
                 
         self.controlBuffer = self.controlBuffer
         
-        controlControl = self.dma_control.pack_ctrl(
+        controlControl = self.dmaControl.pack_ctrl(
             inc_read = 0,                       # always read and write the same
             inc_write = 0,              
             ring_sel = 0,                       # not used 1=write , 0=read for ring
-            treq_sel =  0x3F ,                  # what is the best value?
+            treq_sel =  0x3F,                   # what is the best value?
             irq_quiet = 1,                                         
             ring_size = 0,                      # not used
             size = _DMA_SIZE32                  # 32 bits
@@ -130,7 +139,7 @@ class DmaRingBuffer:
         # Alias 1: 4    CTRL         READ_ADDR   WRITE_ADDR      TRANS_COUNT
         # Alias 2: 8    CTRL         TRANS_COUNT READ_ADDR       WRITE_ADDR
         # Alias 3: 12   CTRL         WRITE_ADDR  TRANS_COUNT     READ_ADDR
-        controlData = self.dma_data.pack_ctrl(
+        controlData = self.dmaData.pack_ctrl(
             inc_read = 0, 
             inc_write = 1,              
             ring_sel = 0,                       # not used ,  1=write , 0=read for ring
@@ -138,22 +147,22 @@ class DmaRingBuffer:
             irq_quiet = 1,                      #             
             ring_size = 0,
             size = _DMA_SIZE32,                 # 32 bits
-            chain_to = self.dma_control.channel
+            chain_to = self.dmaControl.channel
             )
 
         self.controlBuffer[0] = addressof(self.buffer)     # will be write_addr        
         
-        print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write = {addressof(self.dma_data.registers[11:12]):08X}")
-        self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[11:12] ,count=len(self.controlBuffer), ctrl =controlControl ) 
-        self.dma_data.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
-        if( self._dmaError(self.dma_control) or self._dmaError(self.dma_control)):
+        print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write = {addressof(self.dmaData.registers[11:12]):08X}")
+        self.dmaControl.config(read= self.controlBuffer , write = self.dmaData.registers[11:12] ,count=len(self.controlBuffer), ctrl =controlControl ) 
+        self.dmaData.config(read= _PIO0_BASE + _PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
+        if( self._dmaError(self.dmaControl) or self._dmaError(self.dmaControl)):
             self._abortDma()
 
         self.Dump()
         #print(f"controlControl = {self.dma_data.unpack_ctrl(controlControl)}")
         #print(f"controlDate = {self.dma_data.unpack_ctrl(controlData)}")
                 
-        self.dma_data.active(1)
+        self.dmaData.active(1)
         
         #self.Dump()
         count = self._dmaTransCount()      
@@ -161,12 +170,12 @@ class DmaRingBuffer:
         print(f"start dma : write={write:x} count={count:,}")
     
     def Dump(self):
-        print("            READ_ADDR  WRITE_ADDR    TRAN_COUNT  CH0_DBG_TCR ADR(buffer)    DATA[0]      DATA[1] " )
+        print("            READ_ADDR  WRITE_ADDR    TRAN_COUNT  CH0_DBG_TCR ADR(buffer)   DATA[0]      DATA[1] " )
         
-        print(f"DATA({self.dma_data.channel:02})     {self.dma_data.registers[0]:08X}    {self.dma_data.registers[1]:08X}    {self.dma_data.registers[2]:>10} {mem32[_DMA_BASE+_CH0_DBG_TCR+self.dma_data.channel*_DMA_REGISTER_LENGTH]:>10}    {addressof(self.buffer):08X}    {self.buffer[0]:08X}     {self.buffer[1]:08X}");
-        print(f"CTRL({self.dma_control.channel:02})     {self.dma_control.registers[0]:08X}    {self.dma_control.registers[1]:08X}    {self.dma_control.registers[2]:>10} {mem32[_DMA_BASE+_CH0_DBG_TCR+self.dma_control.channel*_DMA_REGISTER_LENGTH]:>10}    {addressof(self.controlBuffer):08X}    {self.controlBuffer[0]:08X}     n/a");
-        print(f"DATA({self.dma_data.channel:02})     {self.dma_data.unpack_ctrl(self.dma_data.ctrl)}")
-        print(f"CTRL({self.dma_control.channel:02})     {self.dma_control.unpack_ctrl(self.dma_control.ctrl)}")
+        print(f"DATA({self.dmaData.channel:02})     {self.dmaData.registers[0]:08X}    {self.dmaData.registers[1]:08X}    {self.dmaData.registers[2]:>10} {mem32[_DMA_BASE+_CH0_DBG_TCR+self.dmaData.channel*_DMA_REGISTER_LENGTH]:>10}    {addressof(self.buffer):08X}    {self.buffer[0]:08X}     {self.buffer[1]:08X}");
+        print(f"CTRL({self.dmaControl.channel:02})     {self.dmaControl.registers[0]:08X}    {self.dmaControl.registers[1]:08X}    {self.dmaControl.registers[2]:>10} {mem32[_DMA_BASE+_CH0_DBG_TCR+self.dmaControl.channel*_DMA_REGISTER_LENGTH]:>10}    {addressof(self.controlBuffer):08X}    {self.controlBuffer[0]:08X}         n/a");
+        print(f"DATA({self.dmaData.channel:02})     {self.dmaData.unpack_ctrl(self.dmaData.ctrl)}")
+        print(f"CTRL({self.dmaControl.channel:02})     {self.dmaControl.unpack_ctrl(self.dmaControl.ctrl)}")
         print(f"data({len(self.buffer)})   = {[nice(x) for x in self.buffer[0:10]]}")
         print(f"control({len(self.controlBuffer)}) = {[hex(x) for x in self.controlBuffer]}")
 
@@ -225,21 +234,21 @@ if __name__ == '__main__' :
     dma = DmaRingBuffer(47)
     dma.Start(smId)
     sm0.active(1)
-    print(f"count word = {dma.countBytes//4}")
+    print(f"count words = {dma.countBytes//4}")
     start = time.time_ns()
     print("   Time[ms]   Delay   Read   Write   Count   Data")
     
     def Read():        
         lastValue = -1
         slp = 0
-        for v,r,w in dma.Get():                      
+        for v,r,w in dma.Get():
             now = time.time_ns() -  start             
             dp = f"{[nice(x) for x in v]}" if( len(v) < 16 ) else f"{[nice(x) for x in v[0:4]]} ... {[nice(x) for x in v[-4:]]}"
-            print(f"{now//1e6:10}    {slp:>1.2f}    {r:>4}    {w:>4}    {w-r:>4} {dp}  ")
+            print(f"{now//1e6:10}    {slp:>1.2f}    {r:>4}    {w:>4}    {w-r:>4}   {dp}")
             
             if( len(v) != 0 ):                                    
                 if( lastValue != v[0]-1 or len(v) != (w-r)):
-                    print(f"**** ERROR *** {lastValue} {v[0]}")
+                    print(f"**** ERROR *** {lastValue}   {v[0]}")
             
                 lastValue = v[-1]
 
@@ -259,6 +268,7 @@ if __name__ == '__main__' :
 
     try:
         Read() 
+        # Debug()
     except KeyboardInterrupt as k:
         print(k)
 
