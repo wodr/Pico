@@ -4,7 +4,7 @@ from array import array
 import struct 
 import sys
 from uctypes import addressof
-from StateMachineHelper import ResetStatemachines,AddCyw43
+from StateMachineHelper import ResetStatemachines
 
 _ADR_PIO0_BASE = const(0x50200000)
 _ADR_PIO1_BASE = const(0x50300000)
@@ -326,7 +326,8 @@ def TestSequence():
 
 if __name__ == '__main__':    
     #TestSequence()
-    rp2.StateMachine(7,NopProgramSmall)
     print(NopProgramSmall)
+    rp2.StateMachine(7,NopProgramSmall)
+    print(NopProgramSmall)    
     DumpInstructions(1)
 #PioInfo(1)

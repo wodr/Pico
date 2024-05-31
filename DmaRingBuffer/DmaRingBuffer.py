@@ -2,7 +2,7 @@ import time
 from array import array
 import rp2
 from uctypes import addressof
-import StateMachineHelper
+from StateMachineHelper import *
 
 if 1==2:
     from ..Common.StateMachineHelper import *
@@ -10,15 +10,7 @@ if 1==2:
 PIO0_BASE = const(0x50200000)
 PIO_RXF0 = const(0x20)
 
-
-rp2.PIO(0).remove_program() # reset all
-rp2.PIO(0).irq(None)
-for i in range(0,4):
-    try:
-        rp2.StateMachine(i).irq(None)
-        rp2.StateMachine(i).active(0)
-    except:
-        pass
+ResetStatemachines()
 
 @rp2.asm_pio(autopush=True,autopull=False, push_thresh=32)
 def PioCounter():    
@@ -81,10 +73,11 @@ class DmaRingBuffer:
 
     def Stop(self):
         self.dma.active(0)
+        self.dma.close()
 
     def _dmaCount(self, count:int | None = None ) -> int:
         """
-        returns the count of word written 
+        return the number of bus transfers a channel will perform before halting.
         """
         if( count is not None):
             self.dma.registers[2] = count
@@ -92,7 +85,8 @@ class DmaRingBuffer:
 
     def _dmaWrite(self, write:int | None = None ) -> int:
         """
-        returns the words written
+        This register updates automatically each time a write completes. The current
+        value is the next address to be written by this channel
         """
         if( write is not None):
             self.dma.registers[1] = write
@@ -101,44 +95,45 @@ class DmaRingBuffer:
     def _dmaBusy(self):
         return (self.dma.registers[3] & (1<<24)) > 0 
 
-    def _alignAddress(self,arraylike,mask): 
+    def _alignAddress(self,view: memoryview,countBytesAsPowerOf2:int) -> memoryview: 
         """
+        assume memoryview has itemsize 4! 
         returns the pointer inside an array, that is aligned so, 
         that it can be used for wrapping by the dma logic
-        start of buffer = addr & mask 
+        buffer = addr & mask must be valid
         """
-        adr = addressof(arraylike)
+        adr = addressof(view)
+        size = (1<<countBytesAsPowerOf2)
+        mask = (size)-1
+        
+        # check alignment of buffer
         remainder = adr & mask
-        if( remainder == 0) :
-            return (adr,0)
-        byteOffset = (mask+1) - remainder
-        adr = adr + byteOffset
-        return (adr,byteOffset)
+        byteOffset = ((mask+1) - remainder) & mask
+        # print(f"size={size} mask={mask:x} align = {byteOffset&mask} adr = {adr:08X} => {adr+byteOffset:08X}")      
+                
+        # project the correct offset and size from memoryview
+        return (view[byteOffset//4:byteOffset//4+size//4])
 
     def _startDma(self,stateMachineId):
                 
         # 1<< ringSize is the number of bytes written before wrapped                
-        alignedAddressOfBuffer,byteOffset = self._alignAddress(self.rawBuffer,self.mask)
-        self.buffer = self.buffer[byteOffset//4:byteOffset//4+self.countBytes//4]   # adjust memory view so that the start is aligned with the dma buffer        
-
-        print(f"buffer = {addressof(self.rawBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset} size = {len(self.buffer)} {[nice(x) for x in self.buffer]}")
-
-        #buffer =buffer[0:dmaCountWords]
-        #print([x  for x in buffer])
+        self.buffer = self._alignAddress(self.buffer,self.countBytesAsPowerOf2)
+        
+        print(f"buffer = {addressof(self.rawBuffer):08X}  size = {len(self.buffer)} {[nice(x) for x in self.buffer]}")
 
         control = self.dma.pack_ctrl(
             inc_read = 0, 
             ring_sel = 1,                       # use write for ring
-            treq_sel =  stateMachineId + 4,     # for state machine id 0..3
+            treq_sel =  stateMachineId + 4 if stateMachineId < 4 else stateMachineId + 12 - 4,
             irq_quiet = 1,         
             inc_write = 1,              
             ring_size = self.countBytesAsPowerOf2,     # is this the size in bytes?       
             size = 2                            # 4 byte words
             )
 
-        print(f"control = {control:X} address of buffer {alignedAddressOfBuffer:8X} {addressof(self.rawBuffer):8X}")
+        print(f"control = {control:X} address of buffer {addressof(self.buffer):8X}")
 
-        self.dma.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = alignedAddressOfBuffer,count=_MAXDMACOUNT, ctrl =control )
+        self.dma.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=_MAXDMACOUNT, ctrl =control )
         
         values = self.dma.unpack_ctrl(control)    
         print(values)
@@ -205,7 +200,7 @@ if __name__ == '__main__' :
     dma = DmaRingBuffer(7)
     dma.Start(smId)
     sm0.active(1)    
-    print(f"count word = {dma.countBytes}")
+    print(f"count word = {dma.countBytes//4}")
     print("Delay   Read   Write   Count   Data")
     try:
         lastValue = -1
