@@ -47,10 +47,8 @@ def measureTime():
     jmp(pin, 'done')            # pin has gone high: all done
     jmp('wait1')
     label('done')
+    mov(x,invert(x))
     in_(x, 32).side(1)          # push high duration
-    # irq(1) => flags == 512
-    # irq(0) => flags == 256
-    irq(0)                      # only one interrupt for 2 fifo fills
     wrap()
 
 rp2.PIO(0).remove_program() # reset all
@@ -59,16 +57,16 @@ for i in range(0,4):
     rp2.StateMachine(i).irq(None)
 
 measurePin = None
-usePwm = False
+usePwm = True
 if( usePwm ):
     measurePin = Pin(13,Pin.IN,Pin.PULL_UP)
     pinPwm = PWM(measurePin)    
-    pinPwm.freq(10)
-    #pinPwm.duty_u16(int(0x8000))    # 50%
-    pinPwm.duty_u16(int(0x4000))   # 25%
+    pinPwm.freq(100)
+    pinPwm.duty_u16(int(0x8000))    # 50%
+    #pinPwm.duty_u16(int(0x4000))   # 25%
     #pinPwm.duty_u16(int(0x1000))   # 50%
 else:
-    measurePin = Pin(21,Pin.IN)
+    measurePin = Pin(22,Pin.IN,Pin.PULL_UP)
 
 sideSetPin = Pin(10,Pin.OUT)
 
@@ -76,113 +74,82 @@ sm0 = rp2.StateMachine(0, measureTime, in_base=measurePin,sideset_base=sideSetPi
 print(f"for signal on {measurePin} machine f= {freq()} Hz sideSet {sideSetPin}")
 
 
-write = 0 
-records  = array('L',[0]*1024)
-exitRequest = False
-def interrupHandler(sm):
-    try:
-        global write,exitRequest
-        flag = sm.irq().flags()
-        try:
-            count = sm0.rx_fifo()
-            if( count == 0 ):
-                #print("ERROR FIFO EMPTY")
-                return
-        except NameError:
-            # todo fix: NameError: name 'sm0' isn't defined
-            return
-        tmp = write
-        while(sm0.rx_fifo() > 0 ):
-            val = 0xffff_ffff -  sm0.get()      # causes MemoryError if execute in hard mode.
-            records[tmp] = val
-            tmp = (tmp + 1)  & 0x3FF   
-        # expect always multiple of 2
-        write = tmp   # set after all values are written
-    except KeyboardInterrupt:
-        print("exit")
-        exitRequest= True
-    
-    return   
-
-rp2.PIO(0).irq(interrupHandler,hard=False)
 sm0.active(1)
 loops = 0
 
 def Read():
     read = 0
-    infoCounter = 0
-    def SingleRead():
-        while(True):
-            nonlocal read, infoCounter
-            while(read != write):
-                val = records[read]
-                read+=1
-                yield (read,val)                
-                read &= 0x3FF
-                infoCounter=0
-            infoCounter += 1
-            if( infoCounter > 100):
-                print(f"no data write = {write} read = {read}")
-                infoCounter = 0
-            time.sleep(0.01)
-            if( exitRequest ):
-                break
+    def SingleRead(timeout=5.0):
+        start = time.ticks_ms()                
+        while(time.ticks_ms() - start < timeout*1000):
+            if( sm0.rx_fifo() > 0 ):
+                yield sm0.get()       
+                start = time.ticks_ms()  
+            else:
+                time.sleep(0.001)        
     
     it = iter(SingleRead())
     
     while(True):
         # always wait for 2 values to calculate duty cycle                
+        highCount=0
+        lowCount=0
         try:
-            read,highCount = next(it)
-            read,lowCount = next(it)        
+            while( True ):
+                highCount = next(it)
+                if( highCount & 0x80_00_00_00):
+                    break
+            highCount = 0xFF_FF_FF_FF - highCount
+            lowCount = next(it)        
         except StopIteration:
+            print("no values")
             return
-
-        yield (read-2,lowCount,highCount)        
+        read +=1
+        #print(f"{highCount:08x} {lowCount:08x}")
+        yield (read,lowCount*3*8e-9,highCount*3*8e-9)        
         
 
 start = time.ticks_ms()
-print(" Time   Loops      Low [#]   High [#]  Instr[#]  Period [ms]    Frequency [Hz]  Duty [%]   error [%]")
+print(" Time   Loops      Low [ms]   High [ms]   Period [ms]    Frequency [Hz]       Duty [%]   error [%]")
 print("----------------------------------------------------------------------------------------------------")
-
+#       505      51       4.99999   4.99985   9.99984      100.002         50.0007     0.0016
 instructionCounterLow = const(3)
 instructionCounterHigh = const(3)
 for (read,lowCount,highCount) in Read():        
     
-   
-    lowCount += 2 # add a little for the overhead of non loop instructions
-    highCount += 1
-    
-    denominator = (lowCount * instructionCounterLow + highCount *instructionCounterHigh)
+       
+    denominator = (lowCount + highCount)
     if( denominator == 0):
-        print(f"{write} {read} {lowCount} {highCount} {denominator}")
+        print(f"{read} {lowCount} {highCount} {denominator}")
         continue
         
-    duty = highCount * instructionCounterHigh/ denominator
+    duty = highCount / denominator
     
     # 
     # each instruction is 8 ns at 125 MHz frequency
     # 3 instructions are used for one loop
     # period  = denominator * (8e-9 * 3)    
     # for if 2 - 3 instructions are use:
-    period = lowCount * (8e-9 *instructionCounterLow) + highCount*(8e-9*instructionCounterHigh)
+    period = lowCount + highCount
     if( period != 0):
         fr = 1/period
     else:
         fr = -1
     expectedFr = round(fr,0)
     abserror = abs(expectedFr- fr)
+    if( expectedFr == 0 ):
+        expectedFr = 1
+
     error = abserror / expectedFr
+    
     error *= 100 
     loops += 1
     # print only each 0.5 seconds
-    if( time.ticks_ms() - start >  500):
-        print(f" {time.ticks_ms()-start:<8} {loops:<8} {highCount:<9} {lowCount:<9} {denominator:<8}   {period*1000:<8}     {fr:<9}       {duty*100:<7}     {error:3.3}") 
+    if( time.ticks_ms() - start >  50):
+        print(f" {time.ticks_ms()-start:<8} {loops:<8} {highCount*1e3:<12} {lowCount*1e3:<12} {period*1000:<12}     {fr:<9}       {duty*100:<7}     {error:3.3}") 
         start = time.ticks_ms()
     
 sm0.active(0)
-sm0.irq(None)
-rp2.PIO(0).irq(None)
 print("done")
 
 

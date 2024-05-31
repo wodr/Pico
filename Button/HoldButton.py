@@ -2,7 +2,7 @@ from machine import Pin
 import rp2
 
 
-@rp2.asm_pio(set_init=rp2.PIO.IN_HIGH)
+@rp2.asm_pio(set_init=rp2.PIO.IN_HIGH,sideset_init=rp2.PIO.OUT_HIGH)
 def touchDetect():
     wrap_target()
     wait(0, pin, 0)    
@@ -37,6 +37,26 @@ def touchDetect():
 
     wrap()
 
+
+def ResetStatemachines():
+    for i in range(0,8):
+        try:
+            print(f"statemachine : {i} {rp2.StateMachine(i).active()}")
+            rp2.StateMachine(i).active(0)
+        except ValueError as e:
+            print(f"cannot stop statemachine {i}  {e}")
+            pass
+
+    rp2.PIO(0).remove_program() # reset all
+    rp2.PIO(1).remove_program() # reset all
+    rp2.PIO(0).irq(None)
+    rp2.PIO(1).irq(None)
+    for i in range(0,8):
+        try:                        
+            rp2.StateMachine(i).irq(None)
+        except ValueError as e :
+            pass
+            print(f"cannot remove irq for statemachine {i} {e}")
 
 class HoldButton: 
     stateMachineIndex = 0
@@ -89,16 +109,8 @@ class HoldButton:
     @staticmethod
     def Reset(firstStateMachine):
         HoldButton.stateMachineIndex = firstStateMachine
-        for i in range(0,2):            
-            rp2.PIO(i).remove_program()                      
-            rp2.PIO(i).irq(None)                          
-        for i in range(0,8):
-            try:
-                rp2.StateMachine(i).active(0)
-                rp2.StateMachine(i).irq(None)
-            except ValueError:
-                # todo fix 'StateMachine claimed by external resource'
-                pass
+        ResetStatemachines()
+
 
 
             
