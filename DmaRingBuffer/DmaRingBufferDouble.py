@@ -54,7 +54,7 @@ class DmaRingBuffer:
     _MAXDMACOUNT = const(0xFFFFFFFF)
     #_MAXDMACOUNT = const(73)
 
-    def __init__(self,countBytesAsPowerOf2:int) -> None:
+    def __init__(self,numberOfBytes:int) -> None:
         """
         @Parameter
         ----------
@@ -65,87 +65,106 @@ class DmaRingBuffer:
         - 6 = 64  bytes
         - 5 = 32 bytes
         """
-        self.dma = rp2.DMA()
-        self.countBytesAsPowerOf2 =countBytesAsPowerOf2
-        self.countBytes = 1<<countBytesAsPowerOf2                
-        self.mask = (1<<countBytesAsPowerOf2)-1
-        # make the buffer so large, that worst case address alignment is possible
-        # wrap in dma is implemented as masking the lower bits e.g 3FF, for 1024 words
-        self.rawBuffer  = array('L',[0]*(self.countBytes//4 * 2) ) 
+        self.dma_data = rp2.DMA()
+        self.dma_control = rp2.DMA()
+        self.rawBuffer  = array('L',[0]*(self.numberOfBytes//4) ) 
         self.buffer = memoryview(self.rawBuffer)
+        self.controlBuffer = array('L',[0]*8)
         
             
-    def Start(self,stateMachineId:int):
+    
         
-        self._startDma(stateMachineId)
-
     def Stop(self):
-        self.dma.active(0)
+        self.dma_data.active(0)
 
     def _dmaCount(self, count:int | None = None ) -> int:
         """
-        return the number of bus transfers a channel will perform before halting.
+        returns the count of word written 
         """
         if( count is not None):
-            self.dma.registers[2] = count
-        return self.dma.registers[2]
+            self.dma_data.registers[2] = count
+        return self.dma_data.registers[2]
 
     def _dmaWrite(self, write:int | None = None ) -> int:
         """
-        This register updates automatically each time a write completes. The current
-        value is the next address to be written by this channel
+        returns the words written
         """
         if( write is not None):
-            self.dma.registers[1] = write
-        return self.dma.registers[1]
+            self.dma_data.registers[1] = write
+        return self.dma_data.registers[1]
 
     def _dmaBusy(self):
-        return (self.dma.registers[3] & (1<<24)) > 0 
+        return (self.dma_data.registers[3] & (1<<24)) > 0 
 
-    def _alignAddress(self,view: memoryview,countBytesAsPowerOf2:int) -> memoryview: 
+    def _alignAddress(self,arraylike,mask): 
         """
-        assume memoryview has itemsize 4! 
         returns the pointer inside an array, that is aligned so, 
         that it can be used for wrapping by the dma logic
-        buffer = addr & mask must be valid
+        start of buffer = addr & mask 
         """
-        adr = addressof(view)
-        size = (1<<countBytesAsPowerOf2)
-        mask = (size)-1
-        
-        # check alignment of buffer
+        adr = addressof(arraylike)
         remainder = adr & mask
-        byteOffset = ((mask+1) - remainder) & mask
-        # print(f"size={size} mask={mask:x} align = {byteOffset&mask} adr = {adr:08X} => {adr+byteOffset:08X}")      
-                
-        # project the correct offset and size from memoryview
-        return (view[byteOffset//4:byteOffset//4+size//4])
+        if( remainder == 0) :
+            return (adr,0)
+        byteOffset = (mask+1) - remainder
+        adr = adr + byteOffset        
+        return (adr,byteOffset)
 
-    def _startDma(self,stateMachineId):
+    def Start(self,stateMachineId:int):
                 
         # 1<< ringSize is the number of bytes written before wrapped                
-        self.buffer = self._alignAddress(self.buffer,self.countBytesAsPowerOf2)
-        
-        print(f"buffer = {addressof(self.rawBuffer):08X}  size = {len(self.buffer)} {[nice(x) for x in self.buffer]}")
+        alignedAddressOfBuffer,byteOffset = self._alignAddress(self.controlBuffer,3)
 
-        control = self.dma.pack_ctrl(
-            inc_read = 0, 
+        alignedControlBuffer = memoryview(self.controlBuffer)
+        alignedControlBuffer = alignedControlBuffer[bytearray//4]
+        
+        print(f"buffer = {addressof(self.controlBuffer):08X} aligned = {alignedAddressOfBuffer:08X} offset={byteOffset} size = {len(self.controlBuffer)} {[nice(x) for x in self.buffer]}")
+
+        # use alias 1 write address and transcount
+
+        alignedControlBuffer[0] = addressof(self.buffer)
+        alignedControlBuffer[1] = len(self.buffer)*4
+        
+        controlControl = self.dma_control.pack_ctrl(
+            inc_read = 1, 
             ring_sel = 1,                       # use write for ring
             treq_sel =  stateMachineId + 4,     # for state machine id 0..3
             irq_quiet = 1,         
             inc_write = 1,              
-            ring_size = self.countBytesAsPowerOf2,     # is this the size in bytes?       
+            ring_size = 3,                      # 8 bytes is this the size in bytes
             size = 2                            # 4 byte words
+            count = len(addresses_of_data),
             )
 
-        print(f"control = {control:X} address of buffer {addressof(self.buffer):8X}")
+        controlData = self.dma_data.pack_ctrl(
+            inc_read = 0, 
+            ring_sel = 0,                       # use write for ring
+            treq_sel =  stateMachineId + 4,     # for state machine id 0..3
+            irq_quiet = 1,         
+            inc_write = 1,              
+            ring_size = 0
+            size = 2                            # 4 byte words            
+            chain_to = self.dma_control.channel
+            )
 
-        self.dma.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=_MAXDMACOUNT, ctrl =control )
+
+        print(f"address of buffer {alignedAddressOfBuffer:8X} {addressof(self.rawBuffer):8X}")
+
+        self.dma_data.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=8, ctrl = controlData)
+        # control channel has to set the write address ( was incremented ) trans count (was count down)  
+        # this should then enable the channel to continue
+        #                  0             1           2           3
+        # Alias 0: 0    READ_ADDR    WRITE_ADDR  TRANS_COUNT     CTRL
+        # Alias 1: 4    CTRL         READ_ADDR   WRITE_ADDR      TRANS_COUNT
+        # Alias 2: 8    CTRL         TRANS_COUNT READ_ADDR       WRITE_ADDR
+        # Alias 3: 12   CTRL         WRITE_ADDR  TRANS_COUNT     READ_ADDR
+        self.dma_control.config(read= alignedControlBuffer , write = self.dma_data.registers[1] ,count=8, ctrl =controlControl )
         
-        values = self.dma.unpack_ctrl(control)    
-        print(values)
+        print(f"controlControl = {self.dma_data.unpack_ctrl(controlControl)}")
+        print(f"controlDate = {self.dma_data.unpack_ctrl(controlData)}")
         
-        self.dma.active(1)
+        self.dma_data.active(1)
+        self.dma_control.active(1)
         count = self._dmaCount()      
         write = self._dmaWrite()   
         print(f"start dma : write={write:x} count={count:,}")
@@ -167,7 +186,7 @@ class DmaRingBuffer:
                 # restart dma,
                 # values might be lost: write is not possible while cnt = 0                 
                 self._dmaCount(_MAXDMACOUNT)
-                self.dma.active(1)   
+                self.dma_data.active(1)   
             
             # only read this once to be consistent
             write  = _MAXDMACOUNT - cnt + fullWrite
