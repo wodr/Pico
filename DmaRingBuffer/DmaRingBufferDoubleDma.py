@@ -37,8 +37,8 @@ sm0.put(0)              # init x
 sm0.exec("pull()")
 sm0.exec("mov(x, osr)") # 
 #sm0.put(62_500_000)     # loop counter 2 per second @ 125 MHz
-#sm0.put(6_250_000)     # loop counter 20 per second
-sm0.put(625_000)       # loop counter 200 per second
+sm0.put(6_250_000)     # loop counter 20 per second
+#sm0.put(625_000)       # loop counter 200 per second
 
 def nice(counter):
     #return hex(counter)
@@ -106,31 +106,9 @@ class DmaRingBuffer:
     def _dmaError(self,dma):
         return  (dma.registers[3] & ((1<<30)|(1<<29))) > 0         
         
-    def _alignAddress(self,view: memoryview,countBytesAsPowerOf2:int) -> memoryview: 
-        """
-        assume memoryview has itemsize 4! 
-        returns the pointer inside an array, that is aligned so, 
-        that it can be used for wrapping by the dma logic
-        buffer = addr & mask must be valid
-        """
-        adr = addressof(view)
-        size = (1<<countBytesAsPowerOf2)
-        mask = (size)-1
-        
-        # check alignment of buffer
-        remainder = adr & mask
-        byteOffset = ((mask+1) - remainder) & mask
-        # print(f"size={size} mask={mask:x} align = {byteOffset&mask} adr = {adr:08X} => {adr+byteOffset:08X}")      
-                
-        # project the correct offset and size from memoryview
-        return (view[byteOffset//4:byteOffset//4+size//4])
-
     def Start(self,stateMachineId:int):
                 
-        self.controlBuffer = self._alignAddress(self.controlBuffer,3)        
-
-        print(f"buffer = {addressof(self.controlBuffer):08X}  size = {len(self.controlBuffer)} {[nice(x) for x in self.buffer]}")
-
+        self.controlBuffer = self.controlBuffer
         
         controlControl = self.dma_control.pack_ctrl(
             inc_read = 0,                       # always read and write the same
@@ -193,12 +171,12 @@ class DmaRingBuffer:
         print(f"CTRL({self.dma_control.channel:02})     {self.dma_control.registers[0]:08X}    {self.dma_control.registers[1]:08X}    {self.dma_control.registers[2]:>10} {mem32[_DMA_BASE+_CH0_DBG_TCR+self.dma_control.channel*0x40]:>10}    {addressof(self.controlBuffer):08X}    {self.controlBuffer[0]:08X}     {self.controlBuffer[1]:08X}");
         print(f"DATA({self.dma_data.channel:02})     {self.dma_data.unpack_ctrl(self.dma_data.ctrl)}")
         print(f"CTRL({self.dma_control.channel:02})     {self.dma_control.unpack_ctrl(self.dma_control.ctrl)}")
-        print(f"data({len(self.buffer)})   = {[nice(x) for x in self.buffer]}")
+        print(f"data({len(self.buffer)})   = {[nice(x) for x in self.buffer[0:10]]}")
         print(f"control({len(self.controlBuffer)}) = {[hex(x) for x in self.controlBuffer]}")
 
     def Get(self):
         """
-            iterator, waits return current array of value
+            iterator, current array of values (also empty)
             yields a memoryview to the dma containing the values not read so far.            
         """
         lastRead = 0  
@@ -248,19 +226,19 @@ class DmaRingBuffer:
 
 if __name__ == '__main__' :
     import random
-    dma = DmaRingBuffer(256)
+    dma = DmaRingBuffer(47)
     dma.Start(smId)
     sm0.active(1)
     print(f"count word = {dma.countBytes//4}")
     start = time.time_ns()
-    print("Time{ms]  Delay   Read   Write   Count   Data")
+    print("   Time[ms]   Delay   Read   Write   Count   Data")
     
     def Read():        
         lastValue = -1
         slp = 0
         for v,r,w in dma.Get():                      
             now = time.time_ns() -  start             
-            print(f"{now//1e6:12} {slp:>1.2f}    {r:>4}    {w:>4}    {w-r:>4}   {[nice(x) for x in v[0:4]]} ... {[nice(x) for x in v[-4:]]} ")                     #{[nice(x) for x in dma.buffer]}
+            print(f"{now//1e6:10}    {slp:>1.2f}    {r:>4}    {w:>4}    {w-r:>4}   {[nice(x) for x in v[0:4]]} ... {[nice(x) for x in v[-4:]]} ")                     #{[nice(x) for x in dma.buffer]}
             
             if( len(v) != 0 ):                                    
                 if( lastValue != v[0]-1):
