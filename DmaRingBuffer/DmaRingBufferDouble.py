@@ -134,9 +134,9 @@ class DmaRingBuffer:
         controlControl = self.dma_control.pack_ctrl(
             inc_read = 1, 
             inc_write = 1,              
-            ring_sel = 0,                       # use 1=write , 0=read for ring
+            ring_sel = 1,                       # use 1=write , 0=read for ring
             treq_sel =  0x3F ,                  # for state machine id 0..3
-            irq_quiet = 1,                                         
+            irq_quiet = 0,                                         
             ring_size = 3,                      # 8 bytes is this the size in bytes:  write_addr and trans_count
             size = 2                            # 4 byte words                        
             )
@@ -152,7 +152,7 @@ class DmaRingBuffer:
         controlData = self.dma_data.pack_ctrl(
             inc_read = 0, 
             inc_write = 1,              
-            ring_sel = 0,                       # use write for ring
+            ring_sel = 0,                       # use 1=write , 0=read for ring
             treq_sel =  stateMachineId + 4,     # for state machine id 0..3
             irq_quiet = 1,                      #             
             ring_size = 0,
@@ -169,14 +169,18 @@ class DmaRingBuffer:
         self.Dump()
         #print(f"controlControl = {self.dma_data.unpack_ctrl(controlControl)}")
         #print(f"controlDate = {self.dma_data.unpack_ctrl(controlData)}")
-        
-        #self.dma_data.active(1)
-        self.dma_control.active(0)
+                
         self.dma_data.active(1)
+        dma.dma_control.irq(self._dmaIrqHandler)
+
         self.Dump()
         count = self._dmaCount()      
         write = self._dmaWrite()   
         print(f"start dma : write={write:x} count={count:,}")
+    def _dmaIrqHandler(self,val):
+        # reset the dma read pointer
+        print(f"RESET COntrol channel {val}")
+        #self.dma_control.registers[0] = addressof(self.controlBuffer)
 
     def Dump(self):
         print("            READ_ADDR  WRITE_ADDR    TRAN_COUNT  CH0_DBG_TCR ADR(buffer)    DATA[0]      DATA[1] " )
@@ -204,7 +208,7 @@ class DmaRingBuffer:
             # print(f" dmaCount = {cnt}")
             if( cnt == 0 ):       
                 print("RESET")   
-                self.dma_data.registers[2] = 4
+                #self.dma_data.registers[2] = 4
                 pass
                 # restart dma,
                 # values might be lost: write is not possible while cnt = 0                                 
@@ -268,10 +272,11 @@ if __name__ == '__main__' :
         while( True):
             dma.Dump()
             if( dma._dmaCount() == 0 ):       
-                print("RESET") 
+                #print("RESET") 
                 #dma.dma_data.registers[1] = addressof(dma.buffer)
                 #dma._dmaCount(4)  
                 #dma.dma_data.active(1)
+                pass
                 
             
             time.sleep(0.5)
