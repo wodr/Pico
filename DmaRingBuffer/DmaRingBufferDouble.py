@@ -164,25 +164,21 @@ class DmaRingBuffer:
         self.controlBuffer[1] = len(self.buffer)        # will be trans count
         
         print(f"len of data ={len(self.buffer)} len of control = {len(self.controlBuffer)} write/tran = {addressof(self.dma_data.registers[1:3]):08X}")
-        #self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[6:8] ,count=len(self.controlBuffer), ctrl =controlControl )
         self.dma_control.config(read= self.controlBuffer , write = self.dma_data.registers[11:12] ,count=1, ctrl =controlControl ) # use write t don't increment
         self.dma_data.config(read= PIO0_BASE + PIO_RXF0 + stateMachineId * 4 , write = self.buffer,count=len(self.buffer), ctrl = controlData)
         self.Dump()
         #print(f"controlControl = {self.dma_data.unpack_ctrl(controlControl)}")
         #print(f"controlDate = {self.dma_data.unpack_ctrl(controlData)}")
                 
-        self.dma_data.active(1)
+        #self.dma_data.active(1)
+        self.dma_control.active(1)
         #dma.dma_control.irq(self._dmaIrqHandler)
 
         self.Dump()
         count = self._dmaCount()      
         write = self._dmaWrite()   
         print(f"start dma : write={write:x} count={count:,}")
-    def _dmaIrqHandler(self,val):
-        # reset the dma read pointer
-        print(f"RESET COntrol channel {val}")
-        #self.dma_control.registers[0] = addressof(self.controlBuffer)
-
+    
     def Dump(self):
         print("            READ_ADDR  WRITE_ADDR    TRAN_COUNT  CH0_DBG_TCR ADR(buffer)    DATA[0]      DATA[1] " )
         data = [f"{x:08X}" for x in self.buffer[0:2] ]
@@ -205,7 +201,7 @@ class DmaRingBuffer:
         
         while(True):           
             cnt = self._dmaCount()  
-            print(self.dma_control.unpack_ctrl(self.dma_control.ctrl))
+            #print(self.dma_control.unpack_ctrl(self.dma_control.ctrl))
             # print(f" dmaCount = {cnt}")
             if( cnt == 0 ):       
                 print("RESET")   
@@ -218,6 +214,7 @@ class DmaRingBuffer:
             # only read this once to be consistent
             write  = len(self.buffer) - cnt + fullWrite
                         
+            yield self.buffer,0,0
             count = cnt - lastCount 
             # keep polling or return empty
             
