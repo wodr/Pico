@@ -6,6 +6,8 @@ from StateMachineHelper import ResetStatemachines
 from machine import mem32 
 import sys
 if 1==2:
+    # upload this file to pico, to use it from the root folder
+    # here just for intellisense
     from ..Common.StateMachineHelper import *
 
 PIO0_BASE = const(0x50200000)
@@ -43,24 +45,14 @@ def nice(counter):
     if( counter == 0 ):
         return 0
     return counter
-    #return (0xffff_ffff - counter)
-
+    
 class DmaRingBuffer: 
-    # as long as count > 0 dma continues to write to the buffer
-    # count can by any number, so set it to maximum before dma signal ready
-    _MAXDMACOUNT = const(0xFFFFFFFF)
-    #_MAXDMACOUNT = const(73)
-
+    
     def __init__(self,countWords:int) -> None:
         """
         @Parameter
         ----------
-        countBytesAsPowerOf2: size of the ringbuffer = 1<<countBytesAsPowerOf2 bytes
-
-        Examples for :
-        - 7 = 128 bytes
-        - 6 = 64  bytes
-        - 5 = 32 bytes
+            countWords: size of the ringbuffer uint32
         """
         self.countBytes = countWords*4
         self.dma_data = rp2.DMA()
@@ -78,13 +70,13 @@ class DmaRingBuffer:
         
     def _abortDma(self):        
         abortMask = (1<< self.dma_control.channel) | (1<<self.dma_data.channel)
-        print(f"*** aborting dma {self.dma_data.channel} and {self.dma_control.channel} ***")
+        # print(f"*** aborting dma {self.dma_data.channel} and {self.dma_control.channel} ***")
         mem32[_DMA_BASE+ _DMA_CHANNEL_ABORT] = abortMask
         while( mem32[_DMA_BASE+ _DMA_CHANNEL_ABORT] != 0 ):
             time.sleep(0.1)
         
     def Stop(self):
-        print(f"**** SHUTDOWN DMA ****")
+        # print(f"**** SHUTDOWN DMA ****")
         self._abortDma()        
         self.dma_data.active(0)
         self.dma_control.active(0)        
@@ -135,29 +127,28 @@ class DmaRingBuffer:
 
     def Start(self,stateMachineId:int):
                 
-        # 1<< ringSize is the number of bytes written before wrapped                
-        
-        self.controlBuffer = self._alignAddress(self.controlBuffer,3)
-        
+        self.controlBuffer = self._alignAddress(self.controlBuffer,3)        
 
         print(f"buffer = {addressof(self.controlBuffer):08X}  size = {len(self.controlBuffer)} {[nice(x) for x in self.buffer]}")
 
-        # use alias 3 write address as trigger
         
         controlControl = self.dma_control.pack_ctrl(
             inc_read = 0,                       # always read and write the same
             inc_write = 0,              
             ring_sel = 0,                       # use 1=write , 0=read for ring
-            treq_sel =  0x3F ,                  # 
+            treq_sel =  0x3F ,                  # what is the best value?
             irq_quiet = 1,                                         
             ring_size = 0,                      # online write 1 word
             size = 2                            # 4 byte words                        
             )
 
 
-        # control channel has to set the write address ( was incremented ) trans count (was count down)  
+        # control channel has to set the write address ( was incremented )
+        # trans count is initialized with previous value
         # this should then enable the channel to continue
-        #                  0             1           2           3
+        # use alias 3 write address as trigger
+        
+        #                  0             1           2           3 (Trigger)
         # Alias 0: 0    READ_ADDR    WRITE_ADDR  TRANS_COUNT     CTRL
         # Alias 1: 4    CTRL         READ_ADDR   WRITE_ADDR      TRANS_COUNT
         # Alias 2: 8    CTRL         TRANS_COUNT READ_ADDR       WRITE_ADDR
@@ -207,7 +198,7 @@ class DmaRingBuffer:
 
     def Get(self):
         """
-            iterator, waits until at least one value is added to the dma.            
+            iterator, waits return current array of value
             yields a memoryview to the dma containing the values not read so far.            
         """
         lastRead = 0  
@@ -217,18 +208,6 @@ class DmaRingBuffer:
         
         while(True):           
             trans =  self._dmaTransCount()  
-            #print(self.dma_control.unpack_ctrl(self.dma_control.ctrl))
-            # print(f" dmaCount = {cnt}")
-            
-            if( trans == len(self.buffer) ):       
-                #print("RESET")   
-                #self.dma_data.registers[2] = 4
-                pass
-                # restart dma,
-                # values might be lost: write is not possible while cnt = 0                                 
-            #print(f"data({len(self.buffer)})   = {[nice(x) for x in self.buffer]}")
-            #print(f"control({len(self.controlBuffer)}) = {[hex(x) for x in self.controlBuffer]}")
-            # only read this once to be consistent
             
             fill = size - trans
             
@@ -237,7 +216,7 @@ class DmaRingBuffer:
             #sys.stdout.write(f"\r count={count}\n")
             if( count == 0 ):
                 # might also be an overflow
-                # or return empty buffer
+                # return empty buffer
                 yield (self.buffer[0:0],lastRead,lastWrite)
                 continue
 
@@ -249,12 +228,7 @@ class DmaRingBuffer:
             #sys.stdout.write(f"\rtrans={trans} fill={fill}/{lastFill} count={count}  lr={lastRead} lc={lastWrite}  r={r}  w={write}  {[nice(x) for x in self.buffer]}  |\n")
 
             lastFill = fill
-            
-            if( write - lastRead > len(self.buffer)):                
-                print(f"**** OVERFLOW **** count={fill} lr={lastRead} w={write} cnt={trans}")
-                lastRead = write
-                continue
-            
+                        
             # print(f" {write} {w} {lastCount} {r}  {self._dmaWrite():08X}")
             if( w <= r): # needs wrap?                
                 wrapCount = len(self.buffer)-r
@@ -302,11 +276,7 @@ if __name__ == '__main__' :
     def Debug():
         while( True):
             dma.Dump()
-            if( dma._dmaTransCount() == 0 ):       
-                #print("RESET") 
-                #dma.dma_data.registers[1] = addressof(dma.buffer)
-                #dma._dmaCount(4)  
-                #dma.dma_data.active(1)
+            if( dma._dmaTransCount() == 0 ):                       
                 pass
                 
             
@@ -315,12 +285,10 @@ if __name__ == '__main__' :
     try:
         Read() 
     except KeyboardInterrupt as k:
-        sm0.active(0)
-        dma.Stop()   # important to shut down other several dma are kept alive.     
-    except Exception as e:
-        print(e)
-        sm0.active(0)
-        dma.Stop()        
+        print(k)
+
+sm0.active(0)
+dma.Stop()        
         
 
 
